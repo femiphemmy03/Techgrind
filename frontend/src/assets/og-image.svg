@@ -1,0 +1,45 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B0F14"/>
+      <stop offset="100%" stop-color="#121821"/>
+    </linearGradient>
+    <linearGradient id="tgGreen2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#39E07A"/>
+      <stop offset="100%" stop-color="#1FBE63"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bgGrad)"/>
+
+  <!-- subtle grid dots -->
+  <g opacity="0.08">
+    <path d="M0 80H1200M0 220H1200M0 360H1200M0 500H1200" stroke="#39E07A" stroke-width="1"/>
+  </g>
+
+  <!-- Mark, scaled + repositioned -->
+  <g transform="translate(90,155) scale(0.55)">
+    <rect width="512" height="512" rx="104" fill="#141B22"/>
+    <rect x="90" y="150" width="150" height="40" rx="8" fill="url(#tgGreen2)"/>
+    <rect x="140" y="150" width="50" height="212" rx="8" fill="url(#tgGreen2)"/>
+    <circle cx="350" cy="256" r="110" fill="none" stroke="url(#tgGreen2)" stroke-width="44"/>
+    <rect x="330" y="228" width="160" height="56" fill="#141B22"/>
+    <rect x="350" y="244" width="92" height="24" rx="6" fill="url(#tgGreen2)"/>
+    <rect x="318" y="398" width="20" height="30" rx="4" fill="#FFB020"/>
+    <rect x="346" y="384" width="20" height="44" rx="4" fill="#FFB020"/>
+    <rect x="374" y="366" width="20" height="62" rx="4" fill="#FFB020"/>
+    <polygon points="384,372 420,336 420,364" fill="#FFB020"/>
+  </g>
+
+  <text x="420" y="300" font-family="Arial, sans-serif" font-weight="800" font-size="72" fill="#F4F7F5" letter-spacing="1">TECHGRIND</text>
+  <text x="422" y="350" font-family="Arial, sans-serif" font-weight="400" font-size="28" fill="#9BB0A8">Learn the skill. Join a startup. Become the employer.</text>
+
+  <g transform="translate(422,400)">
+    <rect width="230" height="46" rx="23" fill="none" stroke="#39E07A" stroke-width="2"/>
+    <text x="26" y="30" font-family="Arial, sans-serif" font-weight="600" font-size="20" fill="#39E07A">12-Week Cohort</text>
+  </g>
+  <g transform="translate(668,400)">
+    <rect width="230" height="46" rx="23" fill="none" stroke="#FFB020" stroke-width="2"/>
+    <text x="20" y="30" font-family="Arial, sans-serif" font-weight="600" font-size="20" fill="#FFB020">₦5,000,000 in Prizes</text>
+  </g>
+</svg>

@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /lecturer
+Disallow: /dashboard
+Disallow: /affiliate/dashboard
+
+Sitemap: https://www.techgrind.com/sitemap.xml

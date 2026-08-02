@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dark theme (default) */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-ink: 11 15 20;
+  --color-surface: 20 27 34;
+  --color-surfaceborder: 26 33 41;
+  --color-offwhite: 244 247 245;
+  --color-muted: 155 176 168;
+  --color-tggreen: 57 224 122;
+  --color-tggreen-dark: 31 190 99;
+  --color-tgamber: 255 176 32;
+}
+
+/* Light theme */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-ink: 247 249 248;
+  --color-surface: 255 255 255;
+  --color-surfaceborder: 227 232 230;
+  --color-offwhite: 16 21 26;
+  --color-muted: 91 107 102;
+  --color-tggreen: 28 160 90;
+  --color-tggreen-dark: 21 128 63;
+  --color-tgamber: 179 106 0;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background-color: rgb(var(--color-ink));
+  transition: background-color 0.2s ease;
+}
+
+::selection {
+  background: rgb(var(--color-tggreen));
+  color: rgb(var(--color-ink));
+}
+
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid rgb(var(--color-tggreen));
+  outline-offset: 2px;
+}
+
+.card {
+  @apply bg-surface border border-surfaceborder rounded-xl2 p-6;
+}
+
+.btn-primary {
+  @apply bg-tggreen text-ink font-semibold rounded-full px-6 py-3 hover:bg-tggreen-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-secondary {
+  @apply bg-transparent border border-tggreen text-tggreen font-semibold rounded-full px-6 py-3 hover:bg-tggreen/10 transition-colors disabled:opacity-50;
+}
+
+.input-field {
+  @apply w-full bg-ink border border-surfaceborder rounded-lg px-4 py-3 text-offwhite placeholder-muted focus:border-tggreen outline-none transition-colors;
+}
+
+.label {
+  @apply block text-sm font-medium text-muted mb-2;
+}

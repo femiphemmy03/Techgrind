@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: techgrind-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      # All other variables (DATABASE_URL, JWT_SECRET, FLW_*, RESEND_API_KEY, TG_LINK_*, etc.)
+      # must be set manually in the Render dashboard from backend/.env.example — never commit real values.
+
+  - type: web
+    name: techgrind-frontend
+    runtime: static
+    rootDir: frontend
+    plan: free
+    buildCommand: npm install && npm run generate-icons && npm run build
+    staticPublishPath: dist
+    routes:
+      # SPA fallback so deep links like /affiliate/dashboard or /:referralCode don't 404 on refresh.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        sync: false
