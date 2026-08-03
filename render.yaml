@@ -19,7 +19,6 @@ services:
     name: techgrind-frontend
     runtime: static
     rootDir: frontend
-    plan: free
     buildCommand: npm install && npm run generate-icons && npm run build
     staticPublishPath: dist
     routes:
