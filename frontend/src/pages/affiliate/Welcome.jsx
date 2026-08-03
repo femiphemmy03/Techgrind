@@ -23,7 +23,7 @@ export default function AffiliateWelcome() {
           <p className="text-muted text-sm">techgrind.ng/yourcode — share it anywhere.</p>
         </div>
         <div className="card">
-          <TrendingUp className="text-tggreen mb-3" size={22} />
+          <TrendingUp className="text-tggreen mb-3" size={21} />
           <p className="font-semibold mb-1">Real impact</p>
           <p className="text-muted text-sm">Help someone become an employer, not a job seeker.</p>
         </div>
