@@ -2,21 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Dark theme (default) */
+/* Light theme (default) */
 :root,
-:root[data-theme='dark'] {
-  color-scheme: dark;
-  --color-ink: 11 15 20;
-  --color-surface: 20 27 34;
-  --color-surfaceborder: 26 33 41;
-  --color-offwhite: 244 247 245;
-  --color-muted: 155 176 168;
-  --color-tggreen: 57 224 122;
-  --color-tggreen-dark: 31 190 99;
-  --color-tgamber: 255 176 32;
-}
-
-/* Light theme */
 :root[data-theme='light'] {
   color-scheme: light;
   --color-ink: 247 249 248;
@@ -27,6 +14,19 @@
   --color-tggreen: 28 160 90;
   --color-tggreen-dark: 21 128 63;
   --color-tgamber: 179 106 0;
+}
+
+/* Dark theme */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-ink: 11 15 20;
+  --color-surface: 20 27 34;
+  --color-surfaceborder: 26 33 41;
+  --color-offwhite: 244 247 245;
+  --color-muted: 155 176 168;
+  --color-tggreen: 57 224 122;
+  --color-tggreen-dark: 31 190 99;
+  --color-tgamber: 255 176 32;
 }
 
 html, body, #root {

@@ -80,7 +80,6 @@ export const getVideos = asyncHandler(async (req, res) => {
   res.json({ videos: rows });
 });
 
-/** Lecturers can only create a week's assessment once — editing an existing one is admin-only. */
 export const createAssessment = asyncHandler(async (req, res) => {
   const lecturer = await getLecturerContext(req.user.id);
   const { week, opensAt, closesAt, questions } = req.body;
@@ -125,7 +124,6 @@ export const createAssessment = asyncHandler(async (req, res) => {
   res.status(201).json({ assessmentId });
 });
 
-/** Read-only list for lecturers — shows what already exists for their track/cohort, including question counts. */
 export const getAssessments = asyncHandler(async (req, res) => {
   const lecturer = await getLecturerContext(req.user.id);
   const { rows } = await query(
@@ -139,7 +137,6 @@ export const getAssessments = asyncHandler(async (req, res) => {
   res.json({ assessments: rows });
 });
 
-/** Pulls scores for all students for a given week, so a lecturer can review class-by-class performance. */
 export const getGrades = asyncHandler(async (req, res) => {
   const lecturer = await getLecturerContext(req.user.id);
   const week = Number(req.query.week);

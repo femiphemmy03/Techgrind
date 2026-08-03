@@ -4,13 +4,6 @@ import { normalizeReferralCode } from '../utils/codes.js';
 import { sendContactFormEmail } from '../services/email.service.js';
 import { verifyAndFinalizePayment } from '../services/paymentProcessing.service.js';
 
-/**
- * Drives which view the landing page shows. Deliberately independent of start_date —
- * registration can stay open weeks after classes begin (rolling/late registration).
- * start_date is informational display only here; it never gates registration.
- * - registration_open: registration_end_date hasn't passed yet -> show countdown + register CTA
- * - waitlist: registration_end_date has passed -> show "registration closed" notice
- */
 export const getCohortStatus = asyncHandler(async (req, res) => {
   const { rows } = await query(
     `SELECT id, name, cohort_number, start_date, registration_end_date, status
@@ -51,14 +44,6 @@ export const submitContact = asyncHandler(async (req, res) => {
   res.json({ message: 'Your message has been sent. We\'ll get back to you shortly.' });
 });
 
-/**
- * Called by the frontend the instant Flutterwave redirects back — verifies directly against
- * Flutterwave's API (never trusts the redirect's own query params) and, if this is a first-time
- * registration payment, converts the pending registration into a real account right here. This
- * is why the student doesn't have to sit and wait for a separate webhook to arrive: whichever of
- * the two (this call, or the webhook) reaches Flutterwave's confirmation first does the work, and
- * the other safely no-ops.
- */
 export const verifyPayment = asyncHandler(async (req, res) => {
   const { transactionId } = req.body;
   if (!transactionId) throw new AppError('Missing transaction reference.');

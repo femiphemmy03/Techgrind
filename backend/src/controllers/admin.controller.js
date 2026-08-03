@@ -1,13 +1,9 @@
 import { query, withTransaction } from '../config/db.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { hashPassword, isStrongPassword } from '../utils/password.js';
-import { initiateTransfer } from '../services/flutterwave.service.js';
 import { extractYoutubeId } from '../services/youtube.service.js';
-import { env } from '../config/env.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// ---------------- Cohorts ----------------
 
 export const listCohorts = asyncHandler(async (req, res) => {
   const { rows } = await query('SELECT * FROM cohorts ORDER BY start_date DESC');
@@ -18,12 +14,6 @@ export const createCohort = asyncHandler(async (req, res) => {
   const { name, cohortNumber, startDate, registrationEndDate } = req.body;
   if (!name || !cohortNumber || !startDate || !registrationEndDate) throw new AppError('All fields are required.');
 
-  // start_date and registration_end_date are intentionally independent — registration can
-  // stay open weeks after classes begin (rolling/late registration). start_date only drives
-  // content unlocking and the informational "cohort starts on..." display, never registration
-  // availability.
-
-  // Only one cohort is "active"/shown on the landing page at a time.
   await query('UPDATE cohorts SET is_active = false');
 
   const { rows } = await query(
@@ -44,33 +34,25 @@ export const updateCohortDates = asyncHandler(async (req, res) => {
   res.json({ cohort: rows[0] });
 });
 
-/**
- * Hard-ends a cohort: permanently deletes every student account (and, via cascade,
- * their submissions/certificates), videos, and assessments tied to it, per product
- * requirement to reclaim database space. This is irreversible.
- */
 export const endCohort = asyncHandler(async (req, res) => {
   const cohortId = req.params.id;
   const { confirm } = req.body;
   if (confirm !== true) throw new AppError('Confirmation required — this permanently deletes all cohort data.');
 
   await withTransaction(async (client) => {
-    // Deleting student users cascades to students/submissions/certificates for this cohort.
     await client.query(
       `DELETE FROM users WHERE id IN (SELECT user_id FROM students WHERE cohort_id = $1)`,
       [cohortId]
     );
-    // videos/assessments cascade on cohort delete via FK, but delete explicitly first for a clean audit trail.
     await client.query('DELETE FROM videos WHERE cohort_id = $1', [cohortId]);
     await client.query('DELETE FROM assessments WHERE cohort_id = $1', [cohortId]);
+    await client.query('DELETE FROM pending_registrations WHERE cohort_id = $1', [cohortId]);
     await client.query(`UPDATE lecturers SET cohort_id = NULL WHERE cohort_id = $1`, [cohortId]);
     await client.query(`UPDATE cohorts SET status = 'ended', is_active = false WHERE id = $1`, [cohortId]);
   });
 
   res.json({ message: 'Cohort ended and all associated data has been removed.' });
 });
-
-// ---------------- Lecturers ----------------
 
 export const listLecturers = asyncHandler(async (req, res) => {
   const { rows } = await query(
@@ -122,8 +104,6 @@ export const assignLecturer = asyncHandler(async (req, res) => {
   res.json({ lecturer: rows[0] });
 });
 
-// ---------------- Users (revoke access) ----------------
-
 export const listStudents = asyncHandler(async (req, res) => {
   const { rows } = await query(
     `SELECT u.id, u.email, u.username, u.is_active, s.paid_registration, s.paid_startup,
@@ -155,8 +135,6 @@ export const setUserActive = asyncHandler(async (req, res) => {
   res.json({ user: rows[0] });
 });
 
-// ---------------- Stats ----------------
-
 export const getStats = asyncHandler(async (req, res) => {
   const [students, byTrack, lecturers, affiliates, payments] = await Promise.all([
     query('SELECT COUNT(*)::int AS count FROM students'),
@@ -173,8 +151,6 @@ export const getStats = asyncHandler(async (req, res) => {
     payments: payments.rows,
   });
 });
-
-// ---------------- Videos (any track/cohort — list/create/edit/delete, admin-only for edit/delete) ----------------
 
 export const listVideosAdmin = asyncHandler(async (req, res) => {
   const { rows } = await query(
@@ -211,8 +187,6 @@ export const deleteVideoAdmin = asyncHandler(async (req, res) => {
   res.json({ message: 'Video deleted.' });
 });
 
-// ---------------- Assessments (any track/cohort — list/create/edit/delete, admin-only for edit/delete) ----------------
-
 export const listAssessmentsAdmin = asyncHandler(async (req, res) => {
   const { rows } = await query(
     `SELECT a.id, a.week_number, a.opens_at, a.closes_at, t.name AS track_name, c.name AS cohort_name,
@@ -235,7 +209,6 @@ export const getAssessmentAdmin = asyncHandler(async (req, res) => {
   res.json({ assessment: aRows[0], questions: qRows });
 });
 
-/** Creates a new assessment, or fully replaces an existing one's window + questions — admin only. */
 export const upsertAssessmentAdmin = asyncHandler(async (req, res) => {
   const { trackId, cohortId, week, opensAt, closesAt, questions } = req.body;
   if (!trackId || !cohortId) throw new AppError('Track and cohort are required.');
@@ -293,8 +266,6 @@ export const deleteAssessmentAdmin = asyncHandler(async (req, res) => {
   res.json({ message: 'Assessment deleted.' });
 });
 
-// ---------------- Notifications ----------------
-
 export const sendNotification = asyncHandler(async (req, res) => {
   const { title, body, audience } = req.body;
   if (!title || !body) throw new AppError('Title and body are required.');
@@ -305,69 +276,10 @@ export const sendNotification = asyncHandler(async (req, res) => {
   res.status(201).json({ notification: rows[0] });
 });
 
-// ---------------- Withdrawals ----------------
-
 export const listWithdrawals = asyncHandler(async (req, res) => {
   const { rows } = await query(
     `SELECT w.*, u.email AS affiliate_email FROM withdrawals w
      JOIN users u ON u.id = w.affiliate_id ORDER BY w.requested_at DESC`
   );
   res.json({ withdrawals: rows });
-});
-
-/**
- * Admin approval triggers the actual Flutterwave transfer programmatically —
- * the marketer never has a "pay myself" button. On failure the reserved count is restored.
- */
-export const decideWithdrawal = asyncHandler(async (req, res) => {
-  const { action } = req.body; // 'approve' | 'reject'
-  const { rows } = await query('SELECT * FROM withdrawals WHERE id = $1', [req.params.id]);
-  const withdrawal = rows[0];
-  if (!withdrawal) throw new AppError('Withdrawal request not found.', 404);
-  if (withdrawal.status !== 'pending') throw new AppError('This request has already been processed.', 409);
-
-  if (action === 'reject') {
-    await withTransaction(async (client) => {
-      await client.query(`UPDATE withdrawals SET status = 'rejected', processed_at = now(), processed_by = $1 WHERE id = $2`, [
-        req.user.id,
-        withdrawal.id,
-      ]);
-      // Restore the reserved count since the payout did not happen.
-      await client.query('UPDATE affiliates SET withdrawable_count = withdrawable_count + $1 WHERE user_id = $2', [
-        withdrawal.count_requested,
-        withdrawal.affiliate_id,
-      ]);
-    });
-    return res.json({ message: 'Withdrawal rejected and count restored.' });
-  }
-
-  if (action !== 'approve') throw new AppError('Invalid action.');
-
-  try {
-    const transfer = await initiateTransfer({
-      accountNumber: withdrawal.account_number,
-      bankCode: withdrawal.bank_code,
-      amount: Number(withdrawal.amount),
-      narration: `TechGrind affiliate payout — ${withdrawal.count_requested} referrals`,
-      reference: `WD_${withdrawal.id}`,
-    });
-
-    await query(
-      `UPDATE withdrawals SET status = 'paid', processed_at = now(), processed_by = $1, flw_transfer_id = $2 WHERE id = $3`,
-      [req.user.id, String(transfer?.data?.id || ''), withdrawal.id]
-    );
-    res.json({ message: 'Transfer initiated.', transfer: transfer?.data });
-  } catch (err) {
-    await withTransaction(async (client) => {
-      await client.query(`UPDATE withdrawals SET status = 'failed', processed_at = now(), processed_by = $1 WHERE id = $2`, [
-        req.user.id,
-        withdrawal.id,
-      ]);
-      await client.query('UPDATE affiliates SET withdrawable_count = withdrawable_count + $1 WHERE user_id = $2', [
-        withdrawal.count_requested,
-        withdrawal.affiliate_id,
-      ]);
-    });
-    throw new AppError('Transfer failed. The affiliate\'s balance has been restored.', 502);
-  }
 });

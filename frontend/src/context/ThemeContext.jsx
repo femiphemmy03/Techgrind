@@ -5,7 +5,7 @@ const ThemeContext = createContext(null);
 function getInitialTheme() {
   const stored = localStorage.getItem('tg_theme');
   if (stored === 'light' || stored === 'dark') return stored;
-  return 'light'; // brand default
+  return 'light'; // platform default background
 }
 
 export function ThemeProvider({ children }) {

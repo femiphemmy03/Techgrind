@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Copy, Wallet, RefreshCcw } from 'lucide-react';
+import { Copy, Wallet, RefreshCcw, AlertTriangle } from 'lucide-react';
 import { api, getErrorMessage } from '../../services/api';
+import NotificationsList from '../../components/NotificationsList';
 
 const TABS = ['Overview', 'Withdraw', 'Referral Code'];
 
@@ -17,6 +18,8 @@ export default function AffiliateDashboard() {
     <div className="max-w-4xl mx-auto px-5 py-10">
       <h1 className="font-display text-2xl font-bold mb-1">Welcome, {data.username || data.email.split('@')[0]} 👋</h1>
       <p className="text-muted text-sm mb-8">Affiliate dashboard</p>
+
+      <NotificationsList />
 
       <div className="flex gap-2 mb-8">
         {TABS.map((t) => (
@@ -57,6 +60,12 @@ function Overview({ data }) {
       <div className="card"><p className="text-3xl font-bold">{data.confirmedReferrals}</p><p className="text-muted text-sm">Lifetime confirmed referrals</p></div>
       <div className="card"><p className="text-3xl font-bold">{data.withdrawableCount}</p><p className="text-muted text-sm">Referrals available to withdraw</p></div>
       <div className="card"><p className="text-3xl font-bold">₦{data.payoutPerReferral}</p><p className="text-muted text-sm">Per successful referral</p></div>
+      <div className="card md:col-span-3">
+        <p className="text-xs text-muted">
+          Withdrawals are automatic and immediate once confirmed — up to {data.maxWithdrawalsPerMonth} times per rolling
+          30 days, at least {data.minDaysBetweenWithdrawals} days apart. There is no admin approval step.
+        </p>
+      </div>
     </div>
   );
 }
@@ -67,6 +76,8 @@ function Withdraw({ data, onDone }) {
   const [accountNumber, setAccountNumber] = useState('');
   const [accountName, setAccountName] = useState('');
   const [resolving, setResolving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -87,17 +98,26 @@ function Withdraw({ data, onDone }) {
     }
   };
 
-  const submit = async (e) => {
+  const openConfirm = (e) => {
     e.preventDefault();
+    if (!accountName) return;
+    setAcknowledged(false);
+    setShowConfirm(true);
+  };
+
+  const confirmAndSubmit = async () => {
+    if (!acknowledged) return;
     setError('');
     setSubmitting(true);
     try {
       const bankName = banks.find((b) => b.code === bankCode)?.name;
-      await api.post('/affiliate/withdrawals', { accountNumber, bankCode, bankName });
+      await api.post('/affiliate/withdrawals', { accountNumber, bankCode, bankName, confirm: true });
+      setShowConfirm(false);
       setSuccess(true);
       onDone();
     } catch (err) {
       setError(getErrorMessage(err));
+      setShowConfirm(false);
     } finally {
       setSubmitting(false);
     }
@@ -108,30 +128,76 @@ function Withdraw({ data, onDone }) {
   }
 
   if (success) {
-    return <div className="card"><p className="text-tggreen font-semibold">Withdrawal request submitted — pending admin review.</p></div>;
+    return (
+      <div className="card">
+        <p className="text-tggreen font-semibold mb-1">Transfer sent</p>
+        <p className="text-muted text-sm">Your withdrawal has been processed automatically. It should reflect in your account shortly.</p>
+      </div>
+    );
   }
 
   return (
-    <form onSubmit={submit} className="card max-w-md space-y-4">
-      <p className="text-sm text-muted">
-        Requesting withdrawal of <strong className="text-offwhite">{data.withdrawableCount} referrals</strong> = ₦{data.withdrawableAmount.toLocaleString()}
-      </p>
-      <div>
-        <label className="label">Bank</label>
-        <select required className="input-field" value={bankCode} onChange={(e) => { setBankCode(e.target.value); setAccountName(''); }}>
-          <option value="">Select bank</option>
-          {banks.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
-        </select>
-      </div>
-      <div>
-        <label className="label">Account number</label>
-        <input required maxLength={10} className="input-field" value={accountNumber} onChange={(e) => { setAccountNumber(e.target.value); setAccountName(''); }} onBlur={resolve} />
-      </div>
-      {resolving && <p className="text-xs text-muted">Verifying account…</p>}
-      {accountName && <p className="text-sm text-tggreen">Account name: {accountName}</p>}
-      {error && <p className="text-sm text-red-400">{error}</p>}
-      <button type="submit" disabled={submitting || !accountName} className="btn-primary w-full">{submitting ? 'Submitting…' : 'Request Withdrawal'}</button>
-    </form>
+    <>
+      <form onSubmit={openConfirm} className="card max-w-md space-y-4">
+        <p className="text-sm text-muted">
+          Requesting withdrawal of <strong className="text-offwhite">{data.withdrawableCount} referrals</strong> = ₦{data.withdrawableAmount.toLocaleString()}
+        </p>
+
+        <div className="bg-tgamber/10 border border-tgamber/40 rounded-lg p-4 flex gap-3">
+          <AlertTriangle className="text-tgamber shrink-0" size={18} />
+          <p className="text-xs text-tgamber">
+            This withdrawal is processed automatically the moment you confirm — there is no manual review step.
+            Double-check the account name shown below matches yours exactly before confirming. TechGrind is not
+            liable for transfers sent to incorrect details you confirmed.
+          </p>
+        </div>
+
+        <div>
+          <label className="label">Bank</label>
+          <select required className="input-field" value={bankCode} onChange={(e) => { setBankCode(e.target.value); setAccountName(''); }}>
+            <option value="">Select bank</option>
+            {banks.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Account number</label>
+          <input required maxLength={10} className="input-field" value={accountNumber} onChange={(e) => { setAccountNumber(e.target.value); setAccountName(''); }} onBlur={resolve} />
+        </div>
+        {resolving && <p className="text-xs text-muted">Verifying account…</p>}
+        {accountName && <p className="text-sm text-tggreen">Account name: {accountName}</p>}
+        {error && <p className="text-sm text-red-400">{error}</p>}
+        <button type="submit" disabled={!accountName} className="btn-primary w-full">Review & Withdraw</button>
+      </form>
+
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-5">
+          <div className="card max-w-sm w-full">
+            <h4 className="font-semibold mb-2">Confirm this is you</h4>
+            <p className="text-sm text-muted mb-1">Account name:</p>
+            <p className="text-offwhite font-semibold mb-4">{accountName}</p>
+            <p className="text-sm text-muted mb-1">Bank:</p>
+            <p className="text-offwhite font-semibold mb-4">{banks.find((b) => b.code === bankCode)?.name}</p>
+            <p className="text-sm text-muted mb-1">Amount:</p>
+            <p className="text-offwhite font-semibold mb-4">₦{data.withdrawableAmount.toLocaleString()}</p>
+
+            <label className="flex items-start gap-3 text-xs text-muted mb-4">
+              <input type="checkbox" checked={acknowledged} onChange={(e) => setAcknowledged(e.target.checked)} className="mt-1" />
+              I confirm this is my account. Once confirmed, this transfer is sent immediately and cannot be undone.
+              If the name above isn't mine, I will cancel and re-check my details.
+            </label>
+
+            {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowConfirm(false)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={confirmAndSubmit} disabled={!acknowledged || submitting} className="btn-primary flex-1">
+                {submitting ? 'Sending…' : 'Confirm & Withdraw'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

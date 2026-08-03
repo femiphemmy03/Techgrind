@@ -1,18 +1,7 @@
 import { query, withTransaction } from '../config/db.js';
 import { verifyTransaction } from './flutterwave.service.js';
-import { sendPaymentConfirmedEmail, sendWelcomeEmail } from './email.service.js';
 import { env } from '../config/env.js';
 
-/**
- * Verifies a transaction directly against Flutterwave, then finalizes it:
- * - STARTUP fee: a `payments` row already exists (created when the logged-in student
- *   clicked "Pay") — this just flips it to successful and unlocks the startup group.
- * - REGISTRATION fee: no account exists yet. A `pending_registrations` row holds the
- *   form data; this converts it into a real user/student/referral row for the first time.
- *
- * Safe to call multiple times for the same transaction (webhook + frontend poll can both
- * call this) — every branch checks current state first and no-ops if already finalized.
- */
 export async function verifyAndFinalizePayment(transactionId) {
   const verification = await verifyTransaction(transactionId);
   const vData = verification?.data;
@@ -22,8 +11,6 @@ export async function verifyAndFinalizePayment(transactionId) {
 
   const txRef = vData.tx_ref;
 
-  // ---------- Case 1: an existing payments row (startup fee, or a registration that
-  // was already converted by a prior call) ----------
   const existingPayment = await query('SELECT * FROM payments WHERE tx_ref = $1', [txRef]);
   if (existingPayment.rows.length) {
     const payment = existingPayment.rows[0];
@@ -47,17 +34,9 @@ export async function verifyAndFinalizePayment(transactionId) {
       }
     });
 
-    const { rows: userRows } = await query('SELECT email FROM users WHERE id = $1', [payment.user_id]);
-    if (userRows[0]) {
-      sendPaymentConfirmedEmail(userRows[0].email, payment.type, Number(payment.amount)).catch((e) =>
-        console.error('[email] payment confirmation failed', e)
-      );
-    }
-
     return { status: 'successful', type: payment.type };
   }
 
-  // ---------- Case 2: a pending registration awaiting its first successful payment ----------
   const pendingResult = await query('SELECT * FROM pending_registrations WHERE tx_ref = $1', [txRef]);
   if (!pendingResult.rows.length) {
     return { status: 'not_found' };
@@ -71,7 +50,7 @@ export async function verifyAndFinalizePayment(transactionId) {
     return { status: 'failed', reason: 'underpaid' };
   }
 
-  const user = await withTransaction(async (client) => {
+  await withTransaction(async (client) => {
     const { rows: userRows } = await client.query(
       `INSERT INTO users (email, username, password_hash, role) VALUES ($1,$2,$3,'student') RETURNING id, email, role, username`,
       [pending.email, pending.username, pending.password_hash]
@@ -105,20 +84,10 @@ export async function verifyAndFinalizePayment(transactionId) {
           [affiliateId]
         );
       }
-      // If the referral code no longer exists (e.g. affiliate changed their code in the
-      // gap between registering and paying), the payment still succeeds — the student
-      // just isn't attributed to anyone. This is correct: we never invent a referral.
     }
 
     await client.query('DELETE FROM pending_registrations WHERE id = $1', [pending.id]);
-
-    return newUser;
   });
-
-  sendWelcomeEmail(user.email, 'student', user.username).catch((e) => console.error('[email] welcome failed', e));
-  sendPaymentConfirmedEmail(user.email, 'registration', env.REGISTRATION_FEE_NGN).catch((e) =>
-    console.error('[email] payment confirmation failed', e)
-  );
 
   return { status: 'successful', type: 'registration' };
 }

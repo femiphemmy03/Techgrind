@@ -25,8 +25,6 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Network-first for API calls (never serve stale payment/dashboard state offline as if it were fresh);
-        // cache-first for the static app shell so it still opens offline.
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
@@ -44,8 +42,6 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Frontend code should still call import.meta.env.VITE_API_URL directly (see src/services/api.js);
-      // this proxy is only a convenience fallback for same-origin fetches during local dev.
       '/api': {
         target: process.env.VITE_BACKEND_ORIGIN || 'http://localhost:5000',
         changeOrigin: true,

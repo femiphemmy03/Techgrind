@@ -4,7 +4,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
-
+import ScrollToTop from './components/ScrollToTop.jsx';
 import Landing from './pages/Landing';
 import Waitlist from './pages/Waitlist';
 import Register from './pages/Register';
@@ -39,6 +39,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
+       <ScrollToTop />
         <AuthProvider>
           <Layout>
             <Routes>

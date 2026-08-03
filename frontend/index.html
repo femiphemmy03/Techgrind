@@ -8,8 +8,8 @@
   <meta name="description" content="TechGrind is a 12-week hands-on tech cohort for Nigerians. Learn product management, full-stack dev, mobile dev, data analytics, digital marketing, UI/UX, cybersecurity, or AI automation — then join a real startup, compete for ₦5,000,000 in prizes, and graduate as an employer, not a job seeker." />
   <meta name="keywords" content="TechGrind, learn to code Nigeria, tech bootcamp Nigeria, startup incubator, full stack development, product management, UI/UX design, data analytics, cybersecurity, AI automation, Nigeria tech jobs" />
   <meta name="robots" content="index, follow" />
-  <link rel="canonical" href="https://www.techgrind.ng/" />
-  <meta name="theme-color" content="#0B0F14" />
+  <link rel="canonical" href="https://www.techgrind.com/" />
+  <meta name="theme-color" content="#F7F9F8" />
 
   <!-- Favicon / PWA icons -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -39,7 +39,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
 
   <script>
-    // Runs before paint to avoid a flash of the wrong theme. ThemeProvider takes over after mount.
+    // Runs before paint to avoid a flash of the wrong theme. Defaults to light
+    // (the platform's default background) unless the visitor previously chose dark.
     (function () {
       try {
         var saved = localStorage.getItem('tg_theme');

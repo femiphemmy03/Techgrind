@@ -32,6 +32,7 @@ export const env = {
   STARTUP_FEE_NGN: Number(process.env.STARTUP_FEE_NGN) || 10000,
   AFFILIATE_PAYOUT_PER_REFERRAL_NGN: Number(process.env.AFFILIATE_PAYOUT_PER_REFERRAL_NGN) || 1500,
   MAX_WITHDRAWALS_PER_MONTH: Number(process.env.MAX_WITHDRAWALS_PER_MONTH) || 3,
+  MIN_DAYS_BETWEEN_WITHDRAWALS: Number(process.env.MIN_DAYS_BETWEEN_WITHDRAWALS) || 10,
 
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   EMAIL_FROM: process.env.EMAIL_FROM || 'TechGrind <no-reply@techgrind.com>',
@@ -48,8 +49,6 @@ export const env = {
   AUTH_RATE_LIMIT_MAX_REQUESTS: Number(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS) || 10,
 };
 
-// Track registry: slug -> { name, telegramGeneral, telegramStartup }
-// Single place to add/remove tracks. Telegram links come from .env only.
 export const TRACKS = {
   'product-management': {
     name: 'Product Management',

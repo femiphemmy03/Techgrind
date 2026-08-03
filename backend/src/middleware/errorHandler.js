@@ -1,4 +1,3 @@
-/** Wraps an async route handler so thrown errors reach the error middleware instead of crashing the process. */
 export const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 export class AppError extends Error {
@@ -15,12 +14,19 @@ export function notFoundHandler(req, res) {
 // eslint-disable-next-line no-unused-vars
 export function errorHandler(err, req, res, next) {
   const statusCode = err.statusCode || 500;
-
-  // Never leak stack traces, SQL fragments, or internal details to the client.
   const message = statusCode < 500 ? err.message : 'Something went wrong. Please try again.';
 
   if (statusCode >= 500) {
-    console.error('[error]', err);
+    if (err.isAxiosError) {
+      console.error('[error] Upstream API call failed:', {
+        url: err.config?.url,
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message,
+      });
+    } else {
+      console.error('[error]', err.stack || err.message || err);
+    }
   }
 
   res.status(statusCode).json({ error: message });

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, getErrorMessage } from '../../services/api';
-import { Users, GraduationCap, Handshake, Wallet, Bell, Upload, ShieldAlert, Pencil, Trash2, Plus, FileCheck2 } from 'lucide-react';
+import { Users, GraduationCap, Handshake, Wallet, Bell, Upload, ShieldAlert, Pencil, Trash2, Plus, FileCheck2, Check } from 'lucide-react';
 
 const TABS = ['Overview', 'Cohorts', 'Lecturers', 'Students', 'Affiliates', 'Withdrawals', 'Videos', 'Assessments', 'Notifications'];
 const WEEK_OPTIONS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -117,8 +117,16 @@ function Cohorts() {
       <form onSubmit={create} className="card grid md:grid-cols-2 gap-4">
         <div><label className="label">Name</label><input required className="input-field" value={form.name} onChange={update('name')} placeholder="Cohort 2.0" /></div>
         <div><label className="label">Number</label><input required type="number" step="0.1" className="input-field" value={form.cohortNumber} onChange={update('cohortNumber')} placeholder="2.0" /></div>
-        <div><label className="label">Start date</label><input required type="datetime-local" className="input-field" value={form.startDate} onChange={update('startDate')} /></div>
-        <div><label className="label">Registration ends</label><input required type="datetime-local" className="input-field" value={form.registrationEndDate} onChange={update('registrationEndDate')} /></div>
+        <div>
+          <label className="label">Start date</label>
+          <input required type="datetime-local" className="input-field" value={form.startDate} onChange={update('startDate')} />
+          <p className="text-xs text-muted mt-1">Informational only — does not affect registration.</p>
+        </div>
+        <div>
+          <label className="label">Registration ends</label>
+          <input required type="datetime-local" className="input-field" value={form.registrationEndDate} onChange={update('registrationEndDate')} />
+          <p className="text-xs text-muted mt-1">Independent of start date — can be weeks after classes begin.</p>
+        </div>
         {error && <p className="text-red-400 text-sm md:col-span-2">{error}</p>}
         {msg && <p className="text-tggreen text-sm md:col-span-2">{msg}</p>}
         <button type="submit" className="btn-primary md:col-span-2">Create & Activate Cohort</button>
@@ -261,23 +269,16 @@ function UserList({ type }) {
 
 function Withdrawals() {
   const [list, setList] = useState([]);
-  const [error, setError] = useState('');
-  const load = () => api.get('/admin/withdrawals').then(({ data }) => setList(data.withdrawals));
-  useEffect(() => { load(); }, []);
-
-  const decide = async (id, action) => {
-    setError('');
-    try {
-      await api.post(`/admin/withdrawals/${id}/decide`, { action });
-      load();
-    } catch (err) { setError(getErrorMessage(err)); }
-  };
+  useEffect(() => { api.get('/admin/withdrawals').then(({ data }) => setList(data.withdrawals)); }, []);
 
   return (
     <div className="card overflow-x-auto">
-      {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
+      <p className="text-xs text-muted mb-4">
+        Withdrawals are fully self-service and processed automatically — this is a read-only log, there is no
+        approval step. Affiliates confirm their own account details before a transfer is sent.
+      </p>
       <table className="w-full text-sm">
-        <thead className="text-muted text-left"><tr><th className="pb-3">Affiliate</th><th className="pb-3">Count</th><th className="pb-3">Amount</th><th className="pb-3">Account</th><th className="pb-3">Status</th><th className="pb-3"></th></tr></thead>
+        <thead className="text-muted text-left"><tr><th className="pb-3">Affiliate</th><th className="pb-3">Count</th><th className="pb-3">Amount</th><th className="pb-3">Account</th><th className="pb-3">Status</th><th className="pb-3">Requested</th></tr></thead>
         <tbody>
           {list.map((w) => (
             <tr key={w.id} className="border-t border-surfaceborder">
@@ -286,18 +287,12 @@ function Withdrawals() {
               <td className="py-3">₦{Number(w.amount).toLocaleString()}</td>
               <td className="py-3">{w.account_name} · {w.account_number}</td>
               <td className="py-3 capitalize">{w.status}</td>
-              <td className="py-3 flex gap-2">
-                {w.status === 'pending' && (
-                  <>
-                    <button onClick={() => decide(w.id, 'approve')} className="text-xs text-tggreen">Approve</button>
-                    <button onClick={() => decide(w.id, 'reject')} className="text-xs text-red-400">Reject</button>
-                  </>
-                )}
-              </td>
+              <td className="py-3">{new Date(w.requested_at).toLocaleString()}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      {!list.length && <p className="text-muted text-sm">No withdrawals yet.</p>}
     </div>
   );
 }
@@ -419,7 +414,7 @@ function AssessmentsTab() {
   const [week, setWeek] = useState('');
   const [opensAt, setOpensAt] = useState('');
   const [closesAt, setClosesAt] = useState('');
-  const [questions, setQuestions] = useState([{ questionText: '', options: ['', ''], correctIndex: 0 }]);
+  const [questions, setQuestions] = useState([{ questionText: '', options: ['', ''], correctIndex: null }]);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
@@ -433,7 +428,7 @@ function AssessmentsTab() {
 
   const resetForm = () => {
     setEditingId(null); setTrackId(''); setCohortId(''); setWeek(''); setOpensAt(''); setClosesAt('');
-    setQuestions([{ questionText: '', options: ['', ''], correctIndex: 0 }]);
+    setQuestions([{ questionText: '', options: ['', ''], correctIndex: null }]);
   };
 
   const editAssessment = async (a) => {
@@ -455,7 +450,7 @@ function AssessmentsTab() {
     loadList();
   };
 
-  const addQuestion = () => setQuestions((q) => [...q, { questionText: '', options: ['', ''], correctIndex: 0 }]);
+  const addQuestion = () => setQuestions((q) => [...q, { questionText: '', options: ['', ''], correctIndex: null }]);
   const removeQuestion = (i) => setQuestions((q) => q.filter((_, idx) => idx !== i));
   const updateQ = (i, patch) => setQuestions((q) => q.map((item, idx) => (idx === i ? { ...item, ...patch } : item)));
   const updateOption = (qi, oi, value) => setQuestions((q) => q.map((item, idx) => idx === qi ? { ...item, options: item.options.map((o, j) => j === oi ? value : o) } : item));
@@ -464,6 +459,13 @@ function AssessmentsTab() {
   const submit = async (e) => {
     e.preventDefault();
     setError(''); setMsg('');
+
+    const missingIndex = questions.findIndex((q) => q.correctIndex === null);
+    if (missingIndex !== -1) {
+      setError(`Please mark the correct answer for question ${missingIndex + 1}.`);
+      return;
+    }
+
     try {
       await api.post('/admin/assessments', { trackId, cohortId, week, opensAt, closesAt, questions });
       setMsg(editingId ? 'Assessment updated.' : 'Assessment saved.');
@@ -506,10 +508,26 @@ function AssessmentsTab() {
               {questions.length > 1 && <button type="button" onClick={() => removeQuestion(qi)}><Trash2 size={16} className="text-red-400" /></button>}
             </div>
             <input required className="input-field mb-3" value={q.questionText} onChange={(e) => updateQ(qi, { questionText: e.target.value })} placeholder="Question text" />
+
+            <p className="text-xs text-muted mb-2">
+              {q.correctIndex === null ? '⚠️ Tap the circle next to the correct answer — any option can be correct:' : 'Correct answer marked below:'}
+            </p>
             {q.options.map((opt, oi) => (
-              <div key={oi} className="flex items-center gap-3 mb-2">
-                <input type="radio" checked={q.correctIndex === oi} onChange={() => updateQ(qi, { correctIndex: oi })} />
-                <input required className="input-field" value={opt} onChange={(e) => updateOption(qi, oi, e.target.value)} placeholder={`Option ${oi + 1}`} />
+              <div
+                key={oi}
+                className={`flex items-center gap-3 mb-2 p-2 rounded-lg border transition-colors ${q.correctIndex === oi ? 'border-tggreen bg-tggreen/10' : 'border-surfaceborder'}`}
+              >
+                <button
+                  type="button"
+                  onClick={() => updateQ(qi, { correctIndex: oi })}
+                  aria-pressed={q.correctIndex === oi}
+                  aria-label={`Mark option ${oi + 1} as the correct answer`}
+                  className={`w-7 h-7 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${q.correctIndex === oi ? 'bg-tggreen border-tggreen' : 'border-surfaceborder hover:border-tggreen/60'}`}
+                >
+                  {q.correctIndex === oi && <Check size={15} className="text-ink" strokeWidth={3} />}
+                </button>
+                <input required className="input-field flex-1" value={opt} onChange={(e) => updateOption(qi, oi, e.target.value)} placeholder={`Option ${oi + 1}`} />
+                {q.correctIndex === oi && <span className="text-xs text-tggreen font-semibold whitespace-nowrap">Correct</span>}
               </div>
             ))}
             <button type="button" onClick={() => addOption(qi)} className="text-sm text-tggreen mt-2">+ Add option</button>

@@ -32,6 +32,5 @@ router.delete('/assessments/:id', ctrl.deleteAssessmentAdmin);
 router.post('/notifications', ctrl.sendNotification);
 
 router.get('/withdrawals', ctrl.listWithdrawals);
-router.post('/withdrawals/:id/decide', ctrl.decideWithdrawal);
 
 export default router;

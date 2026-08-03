@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { PlayCircle, FileCheck2, Award, ExternalLink, Lock } from 'lucide-react';
 import { api, getErrorMessage } from '../../services/api';
+import NotificationsList from '../../components/NotificationsList';
 
 const TABS = ['Overview', 'Videos', 'Assessments', 'Certificate'];
 
@@ -22,6 +22,8 @@ export default function StudentDashboard() {
         Welcome, {dashboard.username || dashboard.email.split('@')[0]} 👋
       </h1>
       <p className="text-muted text-sm mb-8">{dashboard.track.name} · {dashboard.cohort.name} · Week {dashboard.currentWeek} of 12</p>
+
+      <NotificationsList />
 
       <div className="flex gap-2 mb-8 overflow-x-auto">
         {TABS.map((t) => (

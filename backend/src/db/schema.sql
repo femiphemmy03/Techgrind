@@ -1,34 +1,27 @@
 -- TECHGRIND — Database Schema (PostgreSQL / Supabase)
 -- Run once against DATABASE_URL: psql "$DATABASE_URL" -f src/db/schema.sql
+-- Safe to re-run any time this file changes — every statement is idempotent.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- ============================================================
--- CORE LOOKUP TABLES
--- ============================================================
-
 CREATE TABLE IF NOT EXISTS tracks (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug          TEXT UNIQUE NOT NULL,      -- e.g. 'full-stack-dev'
-  name          TEXT NOT NULL,             -- e.g. 'Full-Stack Development'
+  slug          TEXT UNIQUE NOT NULL,
+  name          TEXT NOT NULL,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS cohorts (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name                  TEXT NOT NULL,               -- e.g. 'Cohort 2.0'
+  name                  TEXT NOT NULL,
   cohort_number         NUMERIC NOT NULL,
   start_date            TIMESTAMPTZ NOT NULL,
   registration_end_date TIMESTAMPTZ NOT NULL,
   status                TEXT NOT NULL DEFAULT 'upcoming'
                           CHECK (status IN ('upcoming','registration_open','in_progress','ended')),
-  is_active             BOOLEAN NOT NULL DEFAULT true, -- the single "current" cohort shown on landing
+  is_active             BOOLEAN NOT NULL DEFAULT true,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
--- ============================================================
--- USERS  (single source-of-truth table; role-specific detail in child tables)
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS users (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -40,10 +33,6 @@ CREATE TABLE IF NOT EXISTS users (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-
--- ============================================================
--- STUDENTS
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS students (
   user_id            UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -57,14 +46,6 @@ CREATE TABLE IF NOT EXISTS students (
 );
 CREATE INDEX IF NOT EXISTS idx_students_cohort ON students(cohort_id);
 CREATE INDEX IF NOT EXISTS idx_students_track ON students(track_id);
-
--- ============================================================
--- PENDING REGISTRATIONS
--- Holds registration form data (already-hashed password included) until the
--- ₦6,500 payment succeeds. No users/students/referrals row is created until
--- then — someone who abandons checkout leaves no account and no referral
--- credit behind. The webhook converts a row here into a real account.
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS pending_registrations (
   id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -80,10 +61,6 @@ CREATE TABLE IF NOT EXISTS pending_registrations (
 );
 CREATE INDEX IF NOT EXISTS idx_pending_reg_tx_ref ON pending_registrations(tx_ref);
 
--- ============================================================
--- LECTURERS  (created by admin only)
--- ============================================================
-
 CREATE TABLE IF NOT EXISTS lecturers (
   user_id     UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   track_id    UUID REFERENCES tracks(id),
@@ -92,15 +69,11 @@ CREATE TABLE IF NOT EXISTS lecturers (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- ============================================================
--- AFFILIATES
--- ============================================================
-
 CREATE TABLE IF NOT EXISTS affiliates (
   user_id             UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   referral_code       TEXT UNIQUE NOT NULL,
-  confirmed_referrals INTEGER NOT NULL DEFAULT 0,   -- lifetime confirmed (paid) referrals
-  withdrawable_count  INTEGER NOT NULL DEFAULT 0,   -- confirmed referrals not yet paid out
+  confirmed_referrals INTEGER NOT NULL DEFAULT 0,
+  withdrawable_count  INTEGER NOT NULL DEFAULT 0,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -132,10 +105,6 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 );
 CREATE INDEX IF NOT EXISTS idx_withdrawals_affiliate ON withdrawals(affiliate_id);
 
--- ============================================================
--- PAYMENTS  (Flutterwave — webhook is the only writer of 'success')
--- ============================================================
-
 CREATE TABLE IF NOT EXISTS payments (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -150,10 +119,6 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);
 
--- ============================================================
--- VIDEOS  (YouTube-hosted, unique per track/cohort/week/class)
--- ============================================================
-
 CREATE TABLE IF NOT EXISTS videos (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   track_id     UUID NOT NULL REFERENCES tracks(id),
@@ -167,17 +132,13 @@ CREATE TABLE IF NOT EXISTS videos (
   UNIQUE (track_id, cohort_id, week_number, class_number)
 );
 
--- ============================================================
--- ASSESSMENTS  (objective / multiple-choice, auto-graded)
--- ============================================================
-
 CREATE TABLE IF NOT EXISTS assessments (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   track_id     UUID NOT NULL REFERENCES tracks(id),
   cohort_id    UUID NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,
   week_number  INTEGER NOT NULL CHECK (week_number BETWEEN 1 AND 10),
-  opens_at     TIMESTAMPTZ NOT NULL,   -- Thursday 00:00 of that week
-  closes_at    TIMESTAMPTZ NOT NULL,   -- Sunday 23:59 of that week
+  opens_at     TIMESTAMPTZ NOT NULL,
+  closes_at    TIMESTAMPTZ NOT NULL,
   created_by   UUID REFERENCES users(id),
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (track_id, cohort_id, week_number)
@@ -187,8 +148,8 @@ CREATE TABLE IF NOT EXISTS assessment_questions (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   assessment_id  UUID NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
   question_text  TEXT NOT NULL,
-  options        JSONB NOT NULL,        -- ["Option A", "Option B", "Option C", "Option D"]
-  correct_index  INTEGER NOT NULL,      -- index into options[]
+  options        JSONB NOT NULL,
+  correct_index  INTEGER NOT NULL,
   position       INTEGER NOT NULL DEFAULT 0
 );
 
@@ -196,15 +157,11 @@ CREATE TABLE IF NOT EXISTS assessment_submissions (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   assessment_id  UUID NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
   student_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  answers        JSONB NOT NULL,        -- { questionId: chosenIndex }
-  score          NUMERIC NOT NULL,      -- 0-100
+  answers        JSONB NOT NULL,
+  score          NUMERIC NOT NULL,
   submitted_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (assessment_id, student_user_id)
 );
-
--- ============================================================
--- CERTIFICATES
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS certificates (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -216,10 +173,6 @@ CREATE TABLE IF NOT EXISTS certificates (
   issued_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- ============================================================
--- AUTH SUPPORT
--- ============================================================
-
 CREATE TABLE IF NOT EXISTS otp_codes (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email       TEXT NOT NULL,
@@ -229,10 +182,6 @@ CREATE TABLE IF NOT EXISTS otp_codes (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_codes(email);
-
--- ============================================================
--- NOTIFICATIONS  &  CONTACT
--- ============================================================
 
 CREATE TABLE IF NOT EXISTS notifications (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

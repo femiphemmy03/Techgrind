@@ -26,33 +26,15 @@ const wrapper = (title, bodyHtml) => `
 </html>`;
 
 export const emailTemplates = {
-  welcomeStudent: (name) =>
-    wrapper('Welcome to TechGrind', `<p>Hi ${name || 'there'},</p><p>Your registration is confirmed. Log in any time to see your track, videos, and assessments as they unlock each week.</p>`),
-
-  welcomeAffiliate: (name) =>
-    wrapper('You\'re a TechGrind Affiliate', `<p>Hi ${name || 'there'},</p><p>Your affiliate account is live. Share your referral link and earn ₦${env.AFFILIATE_PAYOUT_PER_REFERRAL_NGN} for every student who completes registration payment using your code.</p>`),
-
   otp: (code) =>
     wrapper('Your password reset code', `<p>Use this code to reset your password. It expires in ${env.OTP_EXPIRY_MINUTES} minutes.</p><p style="font-size:28px;font-weight:800;letter-spacing:4px;color:#39E07A;">${code}</p><p>If you didn't request this, you can safely ignore this email.</p>`),
-
-  paymentConfirmed: (type, amount) =>
-    wrapper('Payment received', `<p>We've confirmed your payment of ₦${amount.toLocaleString()} for ${type === 'registration' ? 'cohort registration' : 'joining a startup'}.</p><p>Your dashboard has been updated with the next steps.</p>`),
 
   contactCopy: ({ name, subject, body }) =>
     wrapper('New contact form message', `<p><strong>From:</strong> ${name}</p><p><strong>Subject:</strong> ${subject}</p><p>${body}</p>`),
 };
 
-export async function sendWelcomeEmail(email, role, name) {
-  const html = role === 'affiliate' ? emailTemplates.welcomeAffiliate(name) : emailTemplates.welcomeStudent(name);
-  return sendEmail({ to: email, subject: 'Welcome to TechGrind', html });
-}
-
 export async function sendOtpEmail(email, code) {
   return sendEmail({ to: email, subject: 'Your TechGrind password reset code', html: emailTemplates.otp(code) });
-}
-
-export async function sendPaymentConfirmedEmail(email, type, amount) {
-  return sendEmail({ to: email, subject: 'TechGrind payment confirmed', html: emailTemplates.paymentConfirmed(type, amount) });
 }
 
 export async function sendContactFormEmail({ name, email, subject, body }) {

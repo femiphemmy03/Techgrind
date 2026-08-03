@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { Rocket, Trophy, Laptop, Globe, Users, TrendingUp } from 'lucide-react';
 import { api } from '../services/api';
 import CountdownTimer from '../components/CountdownTimer';
-
-const TRACK_ICONS = ['💼', '💻', '📱', '📊', '📣', '🎨', '🔐', '🤖'];
+import { getTrackIcon } from './TrackIcons';
 
 export default function Landing() {
   const [cohortData, setCohortData] = useState(null);
@@ -79,12 +78,17 @@ export default function Landing() {
         <h2 className="font-display text-3xl font-bold mb-2">Choose your track</h2>
         <p className="text-muted mb-10">Eight in-demand tracks. Pick one and go deep for 12 weeks.</p>
         <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
-          {tracks.map((t, i) => (
-            <div key={t.slug} className="card hover:border-tggreen/50 transition-colors">
-              <div className="text-2xl mb-3">{TRACK_ICONS[i % TRACK_ICONS.length]}</div>
-              <p className="font-semibold text-sm">{t.name}</p>
-            </div>
-          ))}
+          {tracks.map((t) => {
+            const Icon = getTrackIcon(t);
+            return (
+              <div key={t.slug} className="card hover:border-tggreen/50 transition-colors">
+                <div className="mb-3">
+                  <Icon size={48} />
+                </div>
+                <p className="font-semibold text-sm">{t.name}</p>
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -103,7 +107,7 @@ export default function Landing() {
         <div className="card">
           <Trophy className="text-tgamber mb-3" size={22} />
           <h3 className="font-semibold mb-2">Prizes that matter</h3>
-          <p className="text-muted text-sm">₦5,000,000 in startup funding, free domains and hosting, and laptops for standout students.</p>
+          <p className="text-muted text-sm">Up to ₦5,000,000 in startup funding, free domains and hosting, and laptops for standout students.</p>
         </div>
       </section>
 

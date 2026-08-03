@@ -15,10 +15,11 @@ import adminRoutes from './routes/admin.routes.js';
 import affiliateRoutes from './routes/affiliate.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 
 const app = express();
 
-app.set('trust proxy', 1); // required behind Render's proxy for correct IPs in rate limiting
+app.set('trust proxy', 1);
 
 app.use(helmetMiddleware);
 app.use(corsMiddleware);
@@ -40,6 +41,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/affiliate', affiliateRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

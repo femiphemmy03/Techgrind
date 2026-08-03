@@ -28,17 +28,27 @@ export default function Terms() {
         <h2 className="text-offwhite font-semibold text-lg mt-8 mb-2">4. Affiliate program</h2>
         <p>
           Affiliates earn ₦1,500 for each student who completes registration payment using their referral code.
-          Withdrawals are subject to admin review and a monthly cap. Changing a referral code permanently resets
-          the affiliate's referral count.
+          Changing a referral code permanently resets the affiliate's referral count.
         </p>
 
-        <h2 className="text-offwhite font-semibold text-lg mt-8 mb-2">5. Prizes</h2>
+        <h2 className="text-offwhite font-semibold text-lg mt-8 mb-2">5. Withdrawals</h2>
+        <p>
+          Withdrawals are processed automatically and immediately once requested, up to 3 times within any rolling
+          30-day period, with a minimum of 10 days between requests. There is no manual review step before a
+          transfer is sent — <strong className="text-offwhite">you are solely responsible for the accuracy of the bank account details
+          you provide when requesting a withdrawal.</strong> The platform displays the resolved account holder name
+          for your review before you confirm a withdrawal — it is your responsibility to verify this name matches
+          your own before confirming. Once confirmed, a transfer cannot be reversed. TechGrind is
+          not liable for funds sent to incorrect account details you entered and confirmed.
+        </p>
+
+        <h2 className="text-offwhite font-semibold text-lg mt-8 mb-2">6. Prizes</h2>
         <p>
           Startup funding, laptops, and free domain/hosting awards are given at TechGrind's discretion based on
           team and individual performance, and are not guaranteed to any participant.
         </p>
 
-        <h2 className="text-offwhite font-semibold text-lg mt-8 mb-2">6. Conduct</h2>
+        <h2 className="text-offwhite font-semibold text-lg mt-8 mb-2">7. Conduct</h2>
         <p>
           TechGrind reserves the right to revoke access for any student, lecturer, or affiliate found violating
           these terms or engaging in fraudulent referral activity.

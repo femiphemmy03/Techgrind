@@ -5,11 +5,12 @@ import { generateOtp, hashOtp } from '../utils/otp.js';
 import { normalizeReferralCode, generateTxRef } from '../utils/codes.js';
 import { signToken } from '../middleware/auth.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
-import { sendWelcomeEmail, sendOtpEmail } from '../services/email.service.js';
+import { sendOtpEmail } from '../services/email.service.js';
 import { initiatePayment } from '../services/flutterwave.service.js';
 import { TRACKS, env } from '../config/env.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PENDING_REGISTRATION_TTL_MINUTES = 120;
 
 function assertPasswordsOk(password, confirmPassword) {
   if (!isStrongPassword(password)) {
@@ -20,7 +21,6 @@ function assertPasswordsOk(password, confirmPassword) {
   }
 }
 
-/** Returns the single cohort currently open for registration, or null. */
 async function getOpenCohort() {
   const { rows } = await query(
     `SELECT * FROM cohorts WHERE is_active = true AND status = 'registration_open' AND registration_end_date > now()
@@ -28,8 +28,6 @@ async function getOpenCohort() {
   );
   return rows[0] || null;
 }
-
-const PENDING_REGISTRATION_TTL_MINUTES = 120;
 
 export const registerStudent = asyncHandler(async (req, res) => {
   const { email, username, password, confirmPassword, trackSlug, referralCode } = req.body;
@@ -44,7 +42,6 @@ export const registerStudent = asyncHandler(async (req, res) => {
   const existingUser = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
   if (existingUser.rows.length) throw new AppError('An account with this email already exists.', 409);
 
-  // A still-valid pending registration means a payment attempt is already in flight for this email.
   const existingPending = await query(
     'SELECT id FROM pending_registrations WHERE email = $1 AND expires_at > now()',
     [email.toLowerCase()]
@@ -60,7 +57,6 @@ export const registerStudent = asyncHandler(async (req, res) => {
     if (!rows.length) throw new AppError('That referral code was not found. Leave it blank if you don\'t have one.');
   }
 
-  // Look up the track's DB row (seeded from TRACKS registry).
   const trackRow = await query('SELECT id, name FROM tracks WHERE slug = $1', [trackSlug]);
   if (!trackRow.rows.length) throw new AppError('That track is not available right now.');
   const track = trackRow.rows[0];
@@ -69,7 +65,6 @@ export const registerStudent = asyncHandler(async (req, res) => {
   const txRef = generateTxRef('REG');
   const expiresAt = new Date(Date.now() + PENDING_REGISTRATION_TTL_MINUTES * 60 * 1000);
 
-  // Clear out any expired pending row for this email first (unique constraint on email).
   await query('DELETE FROM pending_registrations WHERE email = $1 AND expires_at <= now()', [email.toLowerCase()]);
 
   await query(
@@ -87,8 +82,6 @@ export const registerStudent = asyncHandler(async (req, res) => {
     meta: { type: 'registration' },
   });
 
-  // No account exists yet and no token is issued — the person logs in only after payment succeeds
-  // and the webhook has converted this pending row into a real account.
   res.status(201).json({ checkoutUrl: payment?.data?.link || null, txRef });
 });
 
@@ -121,7 +114,6 @@ export const registerAffiliate = asyncHandler(async (req, res) => {
   });
 
   const token = signToken(user);
-  sendWelcomeEmail(user.email, 'affiliate').catch((e) => console.error('[email] welcome failed', e));
 
   res.status(201).json({ token, user: { id: user.id, email: user.email, role: user.role } });
 });
@@ -135,7 +127,6 @@ export const login = asyncHandler(async (req, res) => {
   ]);
   const user = rows[0];
 
-  // Constant-shape response whether or not the user exists, to avoid timing-based enumeration on login.
   const dummyHash = '$2a$12$CwTycUXWue0Thq9StjUM0uJ8u3sSQXNjRjIufk4gG9RCUmpaqe0fu';
   const ok = user ? await comparePassword(password, user.password_hash) : await comparePassword(password, dummyHash);
 
@@ -152,8 +143,6 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 
   const { rows } = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
   if (!rows.length) {
-    // Email is our only identifier and only recovery channel, so we confirm existence explicitly here
-    // (a deliberate product choice, not an oversight) rather than silently pretending to send a code.
     throw new AppError('No account was found with that email address.', 404);
   }
 
