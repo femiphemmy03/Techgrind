@@ -34,7 +34,7 @@ export default function Landing() {
             Learn the skill. <span className="text-tggreen">Join a startup.</span> Become the employer.
           </h1>
           <p className="text-muted mt-5 text-lg leading-relaxed">
-            TechGrind is a real, practical, hands-on tech cohort — 1 week introduction, 10 weeks of learning,
+            TechGrind is a real, practical, hands-on tech cohort - 1 week introduction, 10 weeks of learning,
             1 week final assessment and capstone. Graduate paired with a real startup, not a job application.
           </p>
 
