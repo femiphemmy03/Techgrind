@@ -20,7 +20,7 @@ export default function AffiliateWelcome() {
         <div className="card">
           <Users className="text-tggreen mb-3" size={22} />
           <p className="font-semibold mb-1">Your own link</p>
-          <p className="text-muted text-sm">techgrind.com/yourcode — share it anywhere.</p>
+          <p className="text-muted text-sm">techgrind.ng/yourcode — share it anywhere.</p>
         </div>
         <div className="card">
           <TrendingUp className="text-tggreen mb-3" size={22} />
