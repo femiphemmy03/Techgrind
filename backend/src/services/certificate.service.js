@@ -63,7 +63,7 @@ export async function generateCertificatePdf({ fullName, trackName, finalScore, 
   page.drawText(`Issued on ${dateStr}`, { x: 350, y: 250, size: 11, font: regular, color: MUTED });
 
   page.drawLine({ start: { x: 300, y: 120 }, end: { x: 542, y: 120 }, thickness: 1, color: MUTED });
-  page.drawText('techgrind.com — Powered by Oluwafemi Sunmola Technologies LTD (RC: 8815307)', {
+  page.drawText('techgrind.ng — Powered by Oluwafemi Sunmola Technologies LTD (RC: 8815307)', {
     x: 220,
     y: 100,
     size: 10,
