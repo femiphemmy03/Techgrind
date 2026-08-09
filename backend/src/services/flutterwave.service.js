@@ -1,6 +1,13 @@
 import axios from 'axios';
-import { HttpsProxyAgent } from 'https-proxy-agent';
+import * as httpsProxyAgentModule from 'https-proxy-agent';
 import { env } from '../config/env.js';
+
+// https-proxy-agent's export shape has changed across major versions (named export in recent
+// versions, default/CJS-style export in older ones) — resolve whichever shape is actually
+// present instead of assuming one, so this doesn't break on a version mismatch between local
+// installs and what Render's build ends up resolving.
+const HttpsProxyAgent =
+  httpsProxyAgentModule.HttpsProxyAgent || httpsProxyAgentModule.default || httpsProxyAgentModule;
 
 const FLW_BASE = 'https://api.flutterwave.com/v3';
 
