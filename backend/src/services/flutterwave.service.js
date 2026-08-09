@@ -1,12 +1,25 @@
 import axios from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { env } from '../config/env.js';
 
 const FLW_BASE = 'https://api.flutterwave.com/v3';
+
+/**
+ * Flutterwave mandates IP whitelisting for Transfer (payout) calls — Render's own outbound IPs
+ * are shared across many customers and change on redeploy, so they can't be whitelisted directly.
+ * When FLW_PROXY_URL is set, every Flutterwave call routes through a forward proxy with a fixed,
+ * dedicated IP that you control (e.g. a free Oracle Cloud VM running tinyproxy today, or a paid
+ * QuotaGuard endpoint later — swapping providers is just changing this one env var).
+ * Leave FLW_PROXY_URL unset to call Flutterwave directly — fine for local dev/sandbox testing
+ * where transfers aren't being exercised.
+ */
+const proxyAgent = env.FLW_PROXY_URL ? new HttpsProxyAgent(env.FLW_PROXY_URL) : undefined;
 
 const flwClient = axios.create({
   baseURL: FLW_BASE,
   headers: { Authorization: `Bearer ${env.FLW_SECRET_KEY}` },
   timeout: 15000,
+  ...(proxyAgent ? { httpsAgent: proxyAgent, proxy: false } : {}),
 });
 
 /**
@@ -55,8 +68,8 @@ export async function listBanks() {
 }
 
 /**
- * Initiate a payout transfer. Only called after an admin approves a withdrawal request —
- * never triggered directly by a marketer action.
+ * Initiate a payout transfer. This is the specific call Flutterwave requires IP whitelisting
+ * for — make sure FLW_PROXY_URL is set before this is called in production.
  */
 export async function initiateTransfer({ accountNumber, bankCode, amount, narration, reference }) {
   const { data } = await flwClient.post('/transfers', {

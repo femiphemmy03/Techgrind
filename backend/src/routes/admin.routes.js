@@ -32,5 +32,10 @@ router.delete('/assessments/:id', ctrl.deleteAssessmentAdmin);
 router.post('/notifications', ctrl.sendNotification);
 
 router.get('/withdrawals', ctrl.listWithdrawals);
+router.get('/withdrawals/pending-count', ctrl.getPendingWithdrawalCount);
+router.get('/withdrawals/:id/review', ctrl.getWithdrawalReviewInfo);
+router.post('/withdrawals/:id/start-review', ctrl.startWithdrawalReview);
+router.post('/withdrawals/:id/complete', ctrl.completeWithdrawal);
+router.post('/withdrawals/:id/fail', ctrl.failWithdrawal);
 
 export default router;

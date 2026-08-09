@@ -27,12 +27,19 @@ export const env = {
   FLW_PUBLIC_KEY: process.env.FLW_PUBLIC_KEY,
   FLW_SECRET_KEY: process.env.FLW_SECRET_KEY,
   FLW_WEBHOOK_SECRET_HASH: process.env.FLW_WEBHOOK_SECRET_HASH,
+  // Optional forward-proxy URL for Flutterwave calls (format: http://user:pass@host:port).
+  // Required for Transfers once whitelisting is enforced — see flutterwave.service.js.
+  FLW_PROXY_URL: process.env.FLW_PROXY_URL || null,
 
   REGISTRATION_FEE_NGN: Number(process.env.REGISTRATION_FEE_NGN) || 6500,
   STARTUP_FEE_NGN: Number(process.env.STARTUP_FEE_NGN) || 10000,
   AFFILIATE_PAYOUT_PER_REFERRAL_NGN: Number(process.env.AFFILIATE_PAYOUT_PER_REFERRAL_NGN) || 1500,
   MAX_WITHDRAWALS_PER_MONTH: Number(process.env.MAX_WITHDRAWALS_PER_MONTH) || 3,
   MIN_DAYS_BETWEEN_WITHDRAWALS: Number(process.env.MIN_DAYS_BETWEEN_WITHDRAWALS) || 10,
+  // 'manual' (admin sends via Flutterwave's own dashboard, sidesteps IP whitelisting) or
+  // 'automated' (backend calls the Transfers API directly via FLW_PROXY_URL). Same request/
+  // balance code path either way — this flag only changes who/what drives pending -> completed.
+  WITHDRAWAL_MODE: process.env.WITHDRAWAL_MODE === 'automated' ? 'automated' : 'manual',
 
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   EMAIL_FROM: process.env.EMAIL_FROM || 'TechGrind <no-reply@techgrind.com>',

@@ -31,6 +31,9 @@ export const emailTemplates = {
 
   contactCopy: ({ name, subject, body }) =>
     wrapper('New contact form message', `<p><strong>From:</strong> ${name}</p><p><strong>Subject:</strong> ${subject}</p><p>${body}</p>`),
+
+  withdrawalCompleted: (amount) =>
+    wrapper('Withdrawal completed', `<p>Your withdrawal of <strong style="color:#39E07A;">₦${amount.toLocaleString()}</strong> has been sent.</p><p>It should reflect in your account shortly, depending on your bank.</p>`),
 };
 
 export async function sendOtpEmail(email, code) {
@@ -43,4 +46,14 @@ export async function sendContactFormEmail({ name, email, subject, body }) {
     subject: `[Contact] ${subject}`,
     html: emailTemplates.contactCopy({ name: `${name} <${email}>`, subject, body }),
   });
+}
+
+/**
+ * Deliberate, explicit exception to the "OTP + contact form only" email policy — sent only
+ * for manual-mode withdrawal completions (capped at 3/affiliate/month by design, so volume is
+ * inherently low). Automated-mode withdrawals send NO email at all — that's an intentional
+ * decision (dashboard status update is considered sufficient), not an oversight.
+ */
+export async function sendWithdrawalCompletedEmail(email, amount) {
+  return sendEmail({ to: email, subject: 'Your TechGrind withdrawal is complete', html: emailTemplates.withdrawalCompleted(amount) });
 }

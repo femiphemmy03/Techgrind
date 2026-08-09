@@ -24,12 +24,15 @@ export const getDashboard = asyncHandler(async (req, res) => {
     username: userRows[0].username,
     referralCode: affiliate.referral_code,
     referralLink: `${env.FRONTEND_URL}/${affiliate.referral_code}`,
-    confirmedReferrals: affiliate.confirmed_referrals,
-    withdrawableCount: affiliate.withdrawable_count,
-    withdrawableAmount: affiliate.withdrawable_count * env.AFFILIATE_PAYOUT_PER_REFERRAL_NGN,
+    lifetimeReferrals: affiliate.confirmed_referrals,
+    lifetimeEarnedNgn: affiliate.confirmed_referrals * env.AFFILIATE_PAYOUT_PER_REFERRAL_NGN,
+    availableCount: affiliate.withdrawable_count,
+    availableBalanceNgn: affiliate.withdrawable_count * env.AFFILIATE_PAYOUT_PER_REFERRAL_NGN,
+    totalWithdrawnNgn: Number(affiliate.total_withdrawn_ngn),
     payoutPerReferral: env.AFFILIATE_PAYOUT_PER_REFERRAL_NGN,
     maxWithdrawalsPerMonth: env.MAX_WITHDRAWALS_PER_MONTH,
     minDaysBetweenWithdrawals: env.MIN_DAYS_BETWEEN_WITHDRAWALS,
+    withdrawalMode: env.WITHDRAWAL_MODE,
   });
 });
 
@@ -46,6 +49,9 @@ export const getBanks = asyncHandler(async (req, res) => {
 });
 
 export const resolveAccount = asyncHandler(async (req, res) => {
+  if (env.WITHDRAWAL_MODE !== 'automated') {
+    throw new AppError('Account auto-verification is only available in automated withdrawal mode.', 409);
+  }
   const { accountNumber, bankCode } = req.body;
   if (!accountNumber || !bankCode) throw new AppError('Account number and bank are required.');
   try {
@@ -58,21 +64,12 @@ export const resolveAccount = asyncHandler(async (req, res) => {
   }
 });
 
-export const requestWithdrawal = asyncHandler(async (req, res) => {
-  const affiliate = await getAffiliate(req.user.id);
-  const { accountNumber, bankCode, bankName, confirm } = req.body;
-  if (!accountNumber || !bankCode) throw new AppError('Account number and bank are required.');
-  if (confirm !== true) {
-    throw new AppError('Please confirm you have checked your account details before submitting.');
-  }
-
-  if (affiliate.withdrawable_count <= 0) throw new AppError('You have no withdrawable referrals yet.', 409);
-
+async function checkRateLimits(affiliateUserId) {
   const { rows: recentRows } = await query(
     `SELECT requested_at FROM withdrawals
      WHERE affiliate_id = $1 AND requested_at >= now() - interval '30 days'
      ORDER BY requested_at DESC`,
-    [req.user.id]
+    [affiliateUserId]
   );
 
   if (recentRows.length >= env.MAX_WITHDRAWALS_PER_MONTH) {
@@ -86,15 +83,37 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
       throw new AppError(`Please wait ${daysLeft} more day(s) before your next withdrawal.`, 429);
     }
   }
+}
 
+export const requestWithdrawal = asyncHandler(async (req, res) => {
+  const affiliate = await getAffiliate(req.user.id);
+  const { accountNumber, bankCode, bankName, accountName: selfReportedAccountName, confirm } = req.body;
+
+  if (!accountNumber || !bankCode) throw new AppError('Account number and bank are required.');
+  if (confirm !== true) {
+    throw new AppError('Please confirm you have checked your account details before submitting.');
+  }
+  if (affiliate.withdrawable_count <= 0) throw new AppError('You have no withdrawable balance yet.', 409);
+
+  await checkRateLimits(req.user.id);
+
+  const mode = env.WITHDRAWAL_MODE;
   let accountName;
-  try {
-    const verified = await resolveAccountName({ accountNumber, bankCode });
-    accountName = verified?.data?.account_name;
-    if (!accountName) throw new AppError('Could not verify that account. Please check the details.', 422);
-  } catch (err) {
-    if (err instanceof AppError) throw err;
-    throw friendlyFlutterwaveError(err, 'Could not verify that account. Please check the details.');
+
+  if (mode === 'automated') {
+    try {
+      const verified = await resolveAccountName({ accountNumber, bankCode });
+      accountName = verified?.data?.account_name;
+      if (!accountName) throw new AppError('Could not verify that account. Please check the details.', 422);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw friendlyFlutterwaveError(err, 'Could not verify that account. Please check the details.');
+    }
+  } else {
+    if (!selfReportedAccountName || !selfReportedAccountName.trim()) {
+      throw new AppError('Please enter the account name.');
+    }
+    accountName = selfReportedAccountName.trim();
   }
 
   const count = affiliate.withdrawable_count;
@@ -102,13 +121,19 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
 
   const withdrawal = await withTransaction(async (client) => {
     const { rows } = await client.query(
-      `INSERT INTO withdrawals (affiliate_id, count_requested, amount, bank_code, bank_name, account_number, account_name, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'pending') RETURNING *`,
-      [req.user.id, count, amount, bankCode, bankName || null, accountNumber, accountName]
+      `INSERT INTO withdrawals (affiliate_id, mode, count_requested, amount, bank_code, bank_name, account_number, account_name, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending') RETURNING *`,
+      [req.user.id, mode, count, amount, bankCode, bankName || null, accountNumber, accountName]
     );
     await client.query('UPDATE affiliates SET withdrawable_count = 0 WHERE user_id = $1', [req.user.id]);
     return rows[0];
   });
+
+  if (mode === 'manual') {
+    return res.status(201).json({ withdrawal, mode: 'manual' });
+  }
+
+  await query(`UPDATE withdrawals SET status = 'processing' WHERE id = $1`, [withdrawal.id]);
 
   try {
     const transfer = await initiateTransfer({
@@ -119,15 +144,24 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
       reference: `WD_${withdrawal.id}`,
     });
 
-    await query(
-      `UPDATE withdrawals SET status = 'paid', processed_at = now(), flw_transfer_id = $1 WHERE id = $2`,
-      [String(transfer?.data?.id || ''), withdrawal.id]
-    );
+    await withTransaction(async (client) => {
+      await client.query(
+        `UPDATE withdrawals SET status = 'completed', processed_at = now(), flw_transfer_id = $1 WHERE id = $2`,
+        [String(transfer?.data?.id || ''), withdrawal.id]
+      );
+      await client.query('UPDATE affiliates SET total_withdrawn_ngn = total_withdrawn_ngn + $1 WHERE user_id = $2', [
+        amount,
+        req.user.id,
+      ]);
+    });
 
-    res.status(201).json({ withdrawal: { ...withdrawal, status: 'paid' } });
+    res.status(201).json({ withdrawal: { ...withdrawal, status: 'completed' }, mode: 'automated' });
   } catch (err) {
     await withTransaction(async (client) => {
-      await client.query(`UPDATE withdrawals SET status = 'failed', processed_at = now() WHERE id = $1`, [withdrawal.id]);
+      await client.query(
+        `UPDATE withdrawals SET status = 'failed', processed_at = now(), failure_reason = $1 WHERE id = $2`,
+        [err?.response?.data?.message || err.message || 'Transfer failed', withdrawal.id]
+      );
       await client.query('UPDATE affiliates SET withdrawable_count = withdrawable_count + $1 WHERE user_id = $2', [
         count,
         req.user.id,

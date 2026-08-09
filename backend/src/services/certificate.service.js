@@ -6,22 +6,25 @@ const AMBER = rgb(1, 0.690, 0.125);         // #FFB020
 const OFFWHITE = rgb(0.957, 0.969, 0.961);  // #F4F7F5
 const MUTED = rgb(0.608, 0.690, 0.659);     // #9BB0A8
 
-/** Draws the TG mark (same geometry as the brand SVG) directly onto the PDF page. */
+/**
+ * Draws the TG mark. PDF coordinates increase upward (unlike the source SVG logo,
+ * which increases downward) — these local coordinates are already flipped to account
+ * for that, so the mark renders right-side-up with the ascending ticks rising correctly.
+ */
 function drawMark(page, x, y, scale = 1) {
   const s = scale;
-  // T
-  page.drawRectangle({ x: x + 0 * s, y: y + 322 * s, width: 150 * s, height: 40 * s, color: GREEN });
-  page.drawRectangle({ x: x + 50 * s, y: y + 150 * s, width: 50 * s, height: 212 * s, color: GREEN });
-  // G ring (approximated with a thick circle, drawn as stroked ellipse via multiple segments not supported natively —
-  // use a filled donut approximation with two circles)
-  page.drawEllipse({ x: x + 260 * s, y: y + 268 * s, xScale: 88 * s, yScale: 88 * s, color: GREEN });
-  page.drawEllipse({ x: x + 260 * s, y: y + 268 * s, xScale: 66 * s, yScale: 66 * s, color: INK });
-  page.drawRectangle({ x: x + 240 * s, y: y + 240 * s, width: 160 * s, height: 56 * s, color: INK });
-  page.drawRectangle({ x: x + 260 * s, y: y + 256 * s, width: 92 * s, height: 24 * s, color: GREEN });
-  // Ascending ticks
-  page.drawRectangle({ x: x + 228 * s, y: y + 114 * s, width: 20 * s, height: 30 * s, color: AMBER });
-  page.drawRectangle({ x: x + 256 * s, y: y + 100 * s, width: 20 * s, height: 44 * s, color: AMBER });
-  page.drawRectangle({ x: x + 284 * s, y: y + 82 * s, width: 20 * s, height: 62 * s, color: AMBER });
+  // T — crossbar and stem share their top edge, matching the source SVG logo
+  page.drawRectangle({ x: x + 90 * s, y: y + 322 * s, width: 150 * s, height: 40 * s, color: GREEN });
+  page.drawRectangle({ x: x + 140 * s, y: y + 150 * s, width: 50 * s, height: 212 * s, color: GREEN });
+  // G ring, approximated as two concentric filled circles (radii match the source SVG's r=110, strokeWidth=44)
+  page.drawEllipse({ x: x + 350 * s, y: y + 256 * s, xScale: 132 * s, yScale: 132 * s, color: GREEN });
+  page.drawEllipse({ x: x + 350 * s, y: y + 256 * s, xScale: 88 * s, yScale: 88 * s, color: INK });
+  page.drawRectangle({ x: x + 330 * s, y: y + 228 * s, width: 160 * s, height: 56 * s, color: INK });
+  page.drawRectangle({ x: x + 350 * s, y: y + 244 * s, width: 92 * s, height: 24 * s, color: GREEN });
+  // Ascending "grind" ticks — share a bottom baseline and rise upward left-to-right
+  page.drawRectangle({ x: x + 318 * s, y: y + 84 * s, width: 20 * s, height: 30 * s, color: AMBER });
+  page.drawRectangle({ x: x + 346 * s, y: y + 84 * s, width: 20 * s, height: 44 * s, color: AMBER });
+  page.drawRectangle({ x: x + 374 * s, y: y + 84 * s, width: 20 * s, height: 62 * s, color: AMBER });
 }
 
 /**
@@ -44,7 +47,7 @@ export async function generateCertificatePdf({ fullName, trackName, finalScore, 
 
   drawMark(page, 40, 440, 0.28);
 
-  page.drawText('TECHGRIND', { x: 130, y: 500, size: 26, font: bold, color: INK });
+  page.drawText('TECHGRIND', { x: 195, y: 497, size: 26, font: bold, color: INK });
   page.drawText('Certificate of Completion', { x: 280, y: 440, size: 22, font: bold, color: INK });
 
   page.drawText('This certifies that', { x: 340, y: 385, size: 12, font: regular, color: MUTED });
@@ -77,7 +80,7 @@ export async function generateCertificatePdf({ fullName, trackName, finalScore, 
   page.drawEllipse({ x: sealX, y: sealY, xScale: 62, yScale: 62, color: GREEN, opacity: 0.12 });
   page.drawEllipse({ x: sealX, y: sealY, xScale: 62, yScale: 62, borderColor: GREEN, borderWidth: 2 });
   page.drawEllipse({ x: sealX, y: sealY, xScale: 48, yScale: 48, borderColor: AMBER, borderWidth: 1 });
-  drawMark(page, sealX - 34, sealY - 34, 0.15);
+  drawMark(page, sealX - 43, sealY - 34, 0.15);
   const sealLabel = 'OFFICIAL SEAL';
   const sealLabelWidth = bold.widthOfTextAtSize(sealLabel, 8);
   page.drawText(sealLabel, { x: sealX - sealLabelWidth / 2, y: sealY - 58, size: 8, font: bold, color: INK });

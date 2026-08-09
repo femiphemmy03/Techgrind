@@ -34,7 +34,7 @@ export default function Landing() {
             Learn the skill. <span className="text-tggreen">Join a startup.</span> Become the employer.
           </h1>
           <p className="text-muted mt-5 text-lg leading-relaxed">
-            TechGrind is a real, practical, hands-on tech cohort - 1 week introduction, 10 weeks of learning,
+            TechGrind is a real, practical, hands-on tech cohort — 1 week introduction, 10 weeks of learning,
             1 week final assessment and capstone. Graduate paired with a real startup, not a job application.
           </p>
 
@@ -107,7 +107,7 @@ export default function Landing() {
         <div className="card">
           <Trophy className="text-tgamber mb-3" size={22} />
           <h3 className="font-semibold mb-2">Prizes that matter</h3>
-          <p className="text-muted text-sm">Up to ₦5,000,000 in startup funding, free domains and hosting, and laptops for standout students.</p>
+          <p className="text-muted text-sm">₦5,000,000 in startup funding, free domains and hosting, and laptops for standout students.</p>
         </div>
       </section>
 

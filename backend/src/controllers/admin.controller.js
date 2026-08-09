@@ -2,6 +2,7 @@ import { query, withTransaction } from '../config/db.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { hashPassword, isStrongPassword } from '../utils/password.js';
 import { extractYoutubeId } from '../services/youtube.service.js';
+import { sendWithdrawalCompletedEmail } from '../services/email.service.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -279,7 +280,131 @@ export const sendNotification = asyncHandler(async (req, res) => {
 export const listWithdrawals = asyncHandler(async (req, res) => {
   const { rows } = await query(
     `SELECT w.*, u.email AS affiliate_email FROM withdrawals w
-     JOIN users u ON u.id = w.affiliate_id ORDER BY w.requested_at DESC`
+     JOIN users u ON u.id = w.affiliate_id
+     ORDER BY
+       CASE w.status WHEN 'pending' THEN 0 WHEN 'processing' THEN 1 ELSE 2 END,
+       w.requested_at DESC`
   );
   res.json({ withdrawals: rows });
+});
+
+/** For the admin dashboard's badge/counter — pending + processing count as "needs attention" (manual mode only). */
+export const getPendingWithdrawalCount = asyncHandler(async (req, res) => {
+  const { rows } = await query(
+    `SELECT COUNT(*)::int AS count FROM withdrawals WHERE mode = 'manual' AND status IN ('pending','processing')`
+  );
+  res.json({ count: rows[0].count });
+});
+
+/**
+ * Everything admin needs to actually verify this request is legitimate before sending money:
+ * the affiliate's recent confirmed referrals and the registration payments behind them. This is
+ * a recent-history aid, not a precise per-referral ledger — once a balance is withdrawn in full,
+ * which specific referrals "funded" it stops being a meaningful distinction, so this just shows
+ * enough recent confirmed activity for a sanity check.
+ */
+export const getWithdrawalReviewInfo = asyncHandler(async (req, res) => {
+  const { rows: wRows } = await query(
+    `SELECT w.*, u.email AS affiliate_email FROM withdrawals w JOIN users u ON u.id = w.affiliate_id WHERE w.id = $1`,
+    [req.params.id]
+  );
+  const withdrawal = wRows[0];
+  if (!withdrawal) throw new AppError('Withdrawal not found.', 404);
+
+  const { rows: referrals } = await query(
+    `SELECT r.created_at AS referred_at, u.email AS student_email, p.amount, p.status AS payment_status, p.verified_at
+     FROM referrals r
+     JOIN users u ON u.id = r.student_user_id
+     LEFT JOIN payments p ON p.user_id = r.student_user_id AND p.type = 'registration'
+     WHERE r.affiliate_id = $1 AND r.status = 'confirmed'
+     ORDER BY r.created_at DESC
+     LIMIT 20`,
+    [withdrawal.affiliate_id]
+  );
+
+  res.json({ withdrawal, recentConfirmedReferrals: referrals });
+});
+
+/** Admin claims a pending manual request so it doesn't get double-handled by another admin. */
+export const startWithdrawalReview = asyncHandler(async (req, res) => {
+  const { rows } = await query(
+    `UPDATE withdrawals SET status = 'processing', processed_by = $1
+     WHERE id = $2 AND mode = 'manual' AND status = 'pending' RETURNING *`,
+    [req.user.id, req.params.id]
+  );
+  if (!rows.length) throw new AppError('This request is not awaiting review (already claimed or not manual).', 409);
+  res.json({ withdrawal: rows[0] });
+});
+
+/**
+ * Admin has sent the transfer manually through Flutterwave's own dashboard and confirms it here.
+ * This is the only place total_withdrawn_ngn increments — never at request time.
+ */
+export const completeWithdrawal = asyncHandler(async (req, res) => {
+  const { flwReference } = req.body;
+
+  const { rows: wRows } = await query(`SELECT * FROM withdrawals WHERE id = $1`, [req.params.id]);
+  const withdrawal = wRows[0];
+  if (!withdrawal) throw new AppError('Withdrawal not found.', 404);
+  if (withdrawal.mode !== 'manual') throw new AppError('Only manual-mode withdrawals are completed this way.', 409);
+  if (!['pending', 'processing'].includes(withdrawal.status)) {
+    throw new AppError('This request has already been processed.', 409);
+  }
+
+  await withTransaction(async (client) => {
+    await client.query(
+      `UPDATE withdrawals SET status = 'completed', processed_at = now(), processed_by = $1, flw_transfer_id = $2 WHERE id = $3`,
+      [req.user.id, flwReference || null, withdrawal.id]
+    );
+    await client.query('UPDATE affiliates SET total_withdrawn_ngn = total_withdrawn_ngn + $1 WHERE user_id = $2', [
+      withdrawal.amount,
+      withdrawal.affiliate_id,
+    ]);
+    // Personal, targeted notification — only this affiliate sees it, not a broadcast.
+    await client.query(
+      `INSERT INTO notifications (title, body, audience, target_user_id, created_by)
+       VALUES ($1,$2,'affiliates',$3,$4)`,
+      [
+        'Withdrawal completed',
+        `Your withdrawal of ₦${Number(withdrawal.amount).toLocaleString()} has been sent.`,
+        withdrawal.affiliate_id,
+        req.user.id,
+      ]
+    );
+  });
+
+  const { rows: userRows } = await query('SELECT email FROM users WHERE id = $1', [withdrawal.affiliate_id]);
+  if (userRows[0]) {
+    sendWithdrawalCompletedEmail(userRows[0].email, Number(withdrawal.amount)).catch((e) =>
+      console.error('[email] withdrawal completion email failed', e)
+    );
+  }
+
+  res.json({ message: 'Withdrawal marked as completed.' });
+});
+
+/** Admin rejects a request (e.g. the registration payment behind it never actually cleared) — balance is restored. */
+export const failWithdrawal = asyncHandler(async (req, res) => {
+  const { reason } = req.body;
+
+  const { rows: wRows } = await query(`SELECT * FROM withdrawals WHERE id = $1`, [req.params.id]);
+  const withdrawal = wRows[0];
+  if (!withdrawal) throw new AppError('Withdrawal not found.', 404);
+  if (withdrawal.mode !== 'manual') throw new AppError('Only manual-mode withdrawals are rejected this way.', 409);
+  if (!['pending', 'processing'].includes(withdrawal.status)) {
+    throw new AppError('This request has already been processed.', 409);
+  }
+
+  await withTransaction(async (client) => {
+    await client.query(
+      `UPDATE withdrawals SET status = 'failed', processed_at = now(), processed_by = $1, failure_reason = $2 WHERE id = $3`,
+      [req.user.id, reason || null, withdrawal.id]
+    );
+    await client.query('UPDATE affiliates SET withdrawable_count = withdrawable_count + $1 WHERE user_id = $2', [
+      withdrawal.count_requested,
+      withdrawal.affiliate_id,
+    ]);
+  });
+
+  res.json({ message: 'Withdrawal rejected and balance restored.' });
 });

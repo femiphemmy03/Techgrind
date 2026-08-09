@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS affiliates (
   referral_code       TEXT UNIQUE NOT NULL,
   confirmed_referrals INTEGER NOT NULL DEFAULT 0,
   withdrawable_count  INTEGER NOT NULL DEFAULT 0,
+  total_withdrawn_ngn NUMERIC NOT NULL DEFAULT 0,  -- cumulative, only incremented on actual completion
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -87,9 +88,17 @@ CREATE TABLE IF NOT EXISTS referrals (
 );
 CREATE INDEX IF NOT EXISTS idx_referrals_affiliate ON referrals(affiliate_id);
 
+-- Withdrawals: one state machine shared by both manual and automated modes.
+-- mode records which mode was active when the request was created (audit trail —
+-- doesn't change retroactively if WITHDRAWAL_MODE flips later).
+-- pending    -> just created, balance reserved (zeroed) immediately
+-- processing -> manual: admin has started reviewing it / automated: transfer API call in flight
+-- completed  -> money actually sent; total_withdrawn_ngn incremented at this point, not before
+-- failed     -> admin rejected it, or the automated transfer failed; reserved balance is restored
 CREATE TABLE IF NOT EXISTS withdrawals (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   affiliate_id    UUID NOT NULL REFERENCES affiliates(user_id) ON DELETE CASCADE,
+  mode            TEXT NOT NULL CHECK (mode IN ('manual','automated')),
   count_requested INTEGER NOT NULL,
   amount          NUMERIC NOT NULL,
   bank_code       TEXT NOT NULL,
@@ -97,13 +106,16 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   account_number  TEXT NOT NULL,
   account_name    TEXT NOT NULL,
   status          TEXT NOT NULL DEFAULT 'pending'
-                    CHECK (status IN ('pending','approved','rejected','paid','failed')),
+                    CHECK (status IN ('pending','processing','completed','failed')),
+  failure_reason  TEXT,
   flw_transfer_id TEXT,
   requested_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   processed_at    TIMESTAMPTZ,
-  processed_by    UUID REFERENCES users(id)
+  processed_by    UUID REFERENCES users(id)  -- admin who claimed/completed it (manual mode only)
 );
 CREATE INDEX IF NOT EXISTS idx_withdrawals_affiliate ON withdrawals(affiliate_id);
+CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(status);
+
 
 CREATE TABLE IF NOT EXISTS payments (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -183,14 +195,18 @@ CREATE TABLE IF NOT EXISTS otp_codes (
 );
 CREATE INDEX IF NOT EXISTS idx_otp_email ON otp_codes(email);
 
+-- audience-based rows are broadcasts (admin-sent); target_user_id rows are personal,
+-- system-generated notifications (e.g. "your withdrawal completed") visible only to that user.
 CREATE TABLE IF NOT EXISTS notifications (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title       TEXT NOT NULL,
-  body        TEXT NOT NULL,
-  audience    TEXT NOT NULL DEFAULT 'all' CHECK (audience IN ('all','students','lecturers','affiliates')),
-  created_by  UUID REFERENCES users(id),
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title           TEXT NOT NULL,
+  body            TEXT NOT NULL,
+  audience        TEXT NOT NULL DEFAULT 'all' CHECK (audience IN ('all','students','lecturers','affiliates')),
+  target_user_id  UUID REFERENCES users(id) ON DELETE CASCADE,
+  created_by      UUID REFERENCES users(id),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_notifications_target ON notifications(target_user_id);
 
 CREATE TABLE IF NOT EXISTS contact_messages (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
