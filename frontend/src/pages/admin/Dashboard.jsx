@@ -398,9 +398,9 @@ function WithdrawalReview({ id, onBack }) {
           <div><p className="text-muted text-xs">Bank</p><p className="font-semibold">{withdrawal.bank_name || withdrawal.bank_code}</p></div>
           <div><p className="text-muted text-xs">Requested</p><p className="font-semibold">{new Date(withdrawal.requested_at).toLocaleString()}</p></div>
         </div>
-        <p className="text-xs text-tgamber bg-tgamber/10 border border-tgamber/40 rounded-lg p-3">
-          Manual mode — this account name was self-reported by the affiliate, not auto-verified. Confirm it matches
-          when you send the transfer in Flutterwave's own dashboard.
+        <p className="text-xs text-tggreen bg-tggreen/10 border border-tggreen/40 rounded-lg p-3">
+          This account name was verified via Flutterwave when the affiliate submitted the request, and they
+          confirmed it matched their own account before submitting. Still worth a final glance before you send.
         </p>
       </div>
 

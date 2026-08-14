@@ -109,6 +109,8 @@ function WithdrawalHistory() {
 function Withdraw({ data, onDone }) {
   const isManual = data.withdrawalMode === 'manual';
   const [banks, setBanks] = useState([]);
+  const [banksError, setBanksError] = useState('');
+  const [banksLoading, setBanksLoading] = useState(true);
   const [bankCode, setBankCode] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [accountName, setAccountName] = useState('');
@@ -119,10 +121,14 @@ function Withdraw({ data, onDone }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => { api.get('/affiliate/banks').then(({ data }) => setBanks(data.banks)); }, []);
+  useEffect(() => {
+    api.get('/affiliate/banks')
+      .then(({ data }) => setBanks(data.banks))
+      .catch((err) => setBanksError(getErrorMessage(err)))
+      .finally(() => setBanksLoading(false));
+  }, []);
 
   const resolve = async () => {
-    if (isManual) return; // manual mode never calls Flutterwave's API — see backend note
     setError(''); setAccountName('');
     if (!bankCode || accountNumber.length < 10) return;
     setResolving(true);
@@ -149,7 +155,7 @@ function Withdraw({ data, onDone }) {
     setSubmitting(true);
     try {
       const bankName = banks.find((b) => b.code === bankCode)?.name;
-      await api.post('/affiliate/withdrawals', { accountNumber, bankCode, bankName, accountName, confirm: true });
+      await api.post('/affiliate/withdrawals', { accountNumber, bankCode, bankName, confirm: true });
       setShowConfirm(false);
       setSuccess(true);
       onDone();
@@ -212,41 +218,35 @@ function Withdraw({ data, onDone }) {
           Requesting withdrawal of your full available balance: <strong className="text-offwhite">₦{data.availableBalanceNgn.toLocaleString()}</strong>
         </p>
 
-        {!isManual && (
-          <div className="bg-tgamber/10 border border-tgamber/40 rounded-lg p-4 flex gap-3">
-            <AlertTriangle className="text-tgamber shrink-0" size={18} />
-            <p className="text-xs text-tgamber">
-              This withdrawal is processed automatically the moment you confirm — there is no manual review step.
-              Double-check the account name shown below matches yours exactly before confirming. TechGrind is not
-              liable for transfers sent to incorrect details you confirmed.
-            </p>
-          </div>
-        )}
+        <div className="bg-tgamber/10 border border-tgamber/40 rounded-lg p-4 flex gap-3">
+          <AlertTriangle className="text-tgamber shrink-0" size={18} />
+          <p className="text-xs text-tgamber">
+            {isManual
+              ? 'We verify your account name below before this request goes to our team. Double-check it matches you exactly — TechGrind is not liable for transfers sent to incorrect details you confirmed.'
+              : 'This withdrawal is processed automatically the moment you confirm — there is no manual review step. Double-check the account name shown below matches yours exactly before confirming. TechGrind is not liable for transfers sent to incorrect details you confirmed.'}
+          </p>
+        </div>
 
         <div>
           <label className="label">Bank</label>
-          <select required className="input-field" value={bankCode} onChange={(e) => { setBankCode(e.target.value); setAccountName(''); }}>
-            <option value="">Select bank</option>
-            {banks.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
-          </select>
+          {banksLoading ? (
+            <p className="text-xs text-muted">Loading banks…</p>
+          ) : banksError ? (
+            <p className="text-xs text-red-400">Could not load bank list: {banksError}</p>
+          ) : (
+            <select required className="input-field" value={bankCode} onChange={(e) => { setBankCode(e.target.value); setAccountName(''); }}>
+              <option value="">Select bank</option>
+              {banks.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
+            </select>
+          )}
         </div>
         <div>
           <label className="label">Account number</label>
           <input required maxLength={10} className="input-field" value={accountNumber} onChange={(e) => { setAccountNumber(e.target.value); setAccountName(''); }} onBlur={resolve} />
         </div>
 
-        {isManual ? (
-          <div>
-            <label className="label">Account name</label>
-            <input required className="input-field" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="Exactly as it appears on your bank account" />
-            <p className="text-xs text-muted mt-1">We can't auto-verify this in manual mode — please make sure it's exactly right.</p>
-          </div>
-        ) : (
-          <>
-            {resolving && <p className="text-xs text-muted">Verifying account…</p>}
-            {accountName && <p className="text-sm text-tggreen">Account name: {accountName}</p>}
-          </>
-        )}
+        {resolving && <p className="text-xs text-muted">Verifying account…</p>}
+        {accountName && <p className="text-sm text-tggreen">Account name: {accountName}</p>}
 
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button type="submit" disabled={!accountName} className="btn-primary w-full">Review & Withdraw</button>

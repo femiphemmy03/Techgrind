@@ -49,9 +49,6 @@ export const getBanks = asyncHandler(async (req, res) => {
 });
 
 export const resolveAccount = asyncHandler(async (req, res) => {
-  if (env.WITHDRAWAL_MODE !== 'automated') {
-    throw new AppError('Account auto-verification is only available in automated withdrawal mode.', 409);
-  }
   const { accountNumber, bankCode } = req.body;
   if (!accountNumber || !bankCode) throw new AppError('Account number and bank are required.');
   try {
@@ -87,7 +84,7 @@ async function checkRateLimits(affiliateUserId) {
 
 export const requestWithdrawal = asyncHandler(async (req, res) => {
   const affiliate = await getAffiliate(req.user.id);
-  const { accountNumber, bankCode, bankName, accountName: selfReportedAccountName, confirm } = req.body;
+  const { accountNumber, bankCode, bankName, confirm } = req.body;
 
   if (!accountNumber || !bankCode) throw new AppError('Account number and bank are required.');
   if (confirm !== true) {
@@ -97,25 +94,20 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
 
   await checkRateLimits(req.user.id);
 
-  const mode = env.WITHDRAWAL_MODE;
+  // Always verify via Flutterwave, in both modes — this doesn't require the whitelisted proxy
+  // (only the actual Transfer call does), so there's no reason to skip it in manual mode. The
+  // affiliate confirms this system-verified name, not a self-typed one, before anything is created.
   let accountName;
-
-  if (mode === 'automated') {
-    try {
-      const verified = await resolveAccountName({ accountNumber, bankCode });
-      accountName = verified?.data?.account_name;
-      if (!accountName) throw new AppError('Could not verify that account. Please check the details.', 422);
-    } catch (err) {
-      if (err instanceof AppError) throw err;
-      throw friendlyFlutterwaveError(err, 'Could not verify that account. Please check the details.');
-    }
-  } else {
-    if (!selfReportedAccountName || !selfReportedAccountName.trim()) {
-      throw new AppError('Please enter the account name.');
-    }
-    accountName = selfReportedAccountName.trim();
+  try {
+    const verified = await resolveAccountName({ accountNumber, bankCode });
+    accountName = verified?.data?.account_name;
+    if (!accountName) throw new AppError('Could not verify that account. Please check the details.', 422);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw friendlyFlutterwaveError(err, 'Could not verify that account. Please check the details.');
   }
 
+  const mode = env.WITHDRAWAL_MODE;
   const count = affiliate.withdrawable_count;
   const amount = count * env.AFFILIATE_PAYOUT_PER_REFERRAL_NGN;
 
