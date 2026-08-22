@@ -208,6 +208,14 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_target ON notifications(target_user_id);
 
+-- Singleton cache of Flutterwave's /banks/NG response, refreshed automatically every 24h by
+-- bankCache.service.js. id is pinned to 1 so there's always exactly one row to upsert into.
+CREATE TABLE IF NOT EXISTS bank_list_cache (
+  id          INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  banks       JSONB NOT NULL,
+  fetched_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS contact_messages (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name        TEXT NOT NULL,

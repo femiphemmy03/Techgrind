@@ -16,6 +16,7 @@ import affiliateRoutes from './routes/affiliate.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import { startBankCacheScheduler } from './services/bankCache.service.js';
 
 const app = express();
 
@@ -49,3 +50,7 @@ app.use(errorHandler);
 app.listen(env.PORT, () => {
   console.log(`[server] TechGrind API listening on port ${env.PORT} (${env.NODE_ENV})`);
 });
+
+// Populates bank_list_cache immediately on boot, then refreshes it from Flutterwave every
+// 24h in the background. Failures are logged and swallowed — see bankCache.service.js.
+startBankCacheScheduler();

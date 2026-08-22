@@ -1,7 +1,8 @@
 import { query, withTransaction } from '../config/db.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { normalizeReferralCode } from '../utils/codes.js';
-import { listBanks, resolveAccountName, initiateTransfer } from '../services/flutterwave.service.js';
+import { resolveAccountName, initiateTransfer } from '../services/flutterwave.service.js';
+import { getBanks as getCachedBanks } from '../services/bankCache.service.js';
 import { env } from '../config/env.js';
 
 async function getAffiliate(userId) {
@@ -37,14 +38,9 @@ export const getDashboard = asyncHandler(async (req, res) => {
 });
 
 export const getBanks = asyncHandler(async (req, res) => {
-  const data = await listBanks();
-  const raw = data?.data || [];
-  const seen = new Set();
-  const banks = raw.filter((b) => {
-    if (seen.has(b.code)) return false;
-    seen.add(b.code);
-    return true;
-  });
+  // Served from bank_list_cache, refreshed automatically every 24h in the background —
+  // see bankCache.service.js. Instant response, no per-request Flutterwave call.
+  const { banks } = await getCachedBanks();
   res.json({ banks });
 });
 
