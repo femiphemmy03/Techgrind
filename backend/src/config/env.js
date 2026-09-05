@@ -9,19 +9,6 @@ function required(name, fallback = undefined) {
   return val;
 }
 
-function sanitizedProxyUrl() {
-  const raw = process.env.FLW_PROXY_URL;
-  if (!raw || !raw.trim()) return null;
-  try {
-    // eslint-disable-next-line no-new
-    new URL(raw); // throws on placeholder text like "not yet generated"
-    return raw;
-  } catch {
-    console.warn(`[env] FLW_PROXY_URL is set but not a valid URL ("${raw}") — ignoring it, calling Flutterwave directly.`);
-    return null;
-  }
-}
-
 export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: Number(process.env.PORT) || 5000,
@@ -42,9 +29,7 @@ export const env = {
   FLW_WEBHOOK_SECRET_HASH: process.env.FLW_WEBHOOK_SECRET_HASH,
   // Optional forward-proxy URL for Flutterwave calls (format: http://user:pass@host:port).
   // Required for Transfers once whitelisting is enforced — see flutterwave.service.js.
-  // Anything that isn't a real URL (empty, unset, or a leftover placeholder like
-  // "not yet generated") is treated as "no proxy" rather than crashing every Flutterwave call.
-  FLW_PROXY_URL: sanitizedProxyUrl(),
+  FLW_PROXY_URL: process.env.FLW_PROXY_URL || null,
 
   REGISTRATION_FEE_NGN: Number(process.env.REGISTRATION_FEE_NGN) || 6500,
   STARTUP_FEE_NGN: Number(process.env.STARTUP_FEE_NGN) || 10000,
