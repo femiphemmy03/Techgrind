@@ -40,7 +40,7 @@ export default function AffiliateRegister() {
         <div>
           <label className="label">Preferred referral code *</label>
           <input required className="input-field" value={form.referralCode} onChange={update('referralCode')} placeholder="e.g. adelove" />
-          <p className="text-xs text-muted mt-1">Your link will be techgrind.com/{form.referralCode || 'yourcode'}</p>
+          <p className="text-xs text-muted mt-1">Your link will be techgrind.ng/{form.referralCode || 'yourcode'}</p>
         </div>
         <div><label className="label">Password *</label><input type="password" required className="input-field" value={form.password} onChange={update('password')} /></div>
         <div><label className="label">Confirm password *</label><input type="password" required className="input-field" value={form.confirmPassword} onChange={update('confirmPassword')} /></div>

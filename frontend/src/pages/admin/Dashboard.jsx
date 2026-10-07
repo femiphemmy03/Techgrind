@@ -713,30 +713,89 @@ function AssessmentsTab() {
 
 function Notifications() {
   const [form, setForm] = useState({ title: '', body: '', audience: 'all' });
+  const [editingId, setEditingId] = useState(null);
+  const [notifications, setNotifications] = useState([]);
   const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
   const update = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const loadList = () => api.get('/admin/notifications').then(({ data }) => setNotifications(data.notifications));
+  useEffect(() => { loadList(); }, []);
+
+  const resetForm = () => { setEditingId(null); setForm({ title: '', body: '', audience: 'all' }); };
+
+  const editNotification = (n) => {
+    setEditingId(n.id);
+    setForm({ title: n.title, body: n.body, audience: n.audience });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const deleteNotification = async (id) => {
+    if (!window.confirm('Delete this notification for everyone who can currently see it?')) return;
+    await api.delete(`/admin/notifications/${id}`);
+    loadList();
+  };
 
   const submit = async (e) => {
     e.preventDefault();
-    await api.post('/admin/notifications', form);
-    setMsg('Notification sent.');
-    setForm({ title: '', body: '', audience: 'all' });
+    setError(''); setMsg('');
+    try {
+      if (editingId) {
+        await api.patch(`/admin/notifications/${editingId}`, form);
+        setMsg('Notification updated.');
+      } else {
+        await api.post('/admin/notifications', form);
+        setMsg('Notification sent.');
+      }
+      resetForm();
+      loadList();
+    } catch (err) { setError(getErrorMessage(err)); }
   };
 
   return (
-    <form onSubmit={submit} className="card max-w-lg space-y-4">
-      <div><label className="label">Title</label><input required className="input-field" value={form.title} onChange={update('title')} /></div>
-      <div><label className="label">Message</label><textarea required rows={4} className="input-field" value={form.body} onChange={update('body')} /></div>
-      <div><label className="label">Audience</label>
-        <select className="input-field" value={form.audience} onChange={update('audience')}>
-          <option value="all">Everyone</option>
-          <option value="students">Students</option>
-          <option value="lecturers">Lecturers</option>
-          <option value="affiliates">Affiliates</option>
-        </select>
+    <div className="space-y-8">
+      <form onSubmit={submit} className="card max-w-lg space-y-4">
+        <p className="text-xs text-muted">{editingId ? 'Editing an existing notification — changes apply immediately for everyone who can see it.' : 'Send a new broadcast notification.'}</p>
+        <div><label className="label">Title</label><input required className="input-field" value={form.title} onChange={update('title')} /></div>
+        <div><label className="label">Message</label><textarea required rows={4} className="input-field" value={form.body} onChange={update('body')} /></div>
+        <div><label className="label">Audience</label>
+          <select className="input-field" value={form.audience} onChange={update('audience')}>
+            <option value="all">Everyone</option>
+            <option value="students">Students</option>
+            <option value="lecturers">Lecturers</option>
+            <option value="affiliates">Affiliates</option>
+          </select>
+        </div>
+        {msg && <p className="text-tggreen text-sm">{msg}</p>}
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+        <div className="flex gap-3">
+          <button type="submit" className="btn-primary inline-flex items-center gap-2"><Bell size={16} /> {editingId ? 'Update Notification' : 'Send Notification'}</button>
+          {editingId && <button type="button" onClick={resetForm} className="btn-secondary">Cancel Edit</button>}
+        </div>
+      </form>
+
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="text-muted text-left"><tr><th className="pb-3">Title</th><th className="pb-3">Audience</th><th className="pb-3">Sent</th><th className="pb-3"></th></tr></thead>
+          <tbody>
+            {notifications.map((n) => (
+              <tr key={n.id} className="border-t border-surfaceborder align-top">
+                <td className="py-3">
+                  <p className="font-medium">{n.title}</p>
+                  <p className="text-muted text-xs mt-0.5 max-w-md">{n.body}</p>
+                </td>
+                <td className="py-3 capitalize">{n.audience}</td>
+                <td className="py-3 text-muted text-xs">{new Date(n.created_at).toLocaleString()}</td>
+                <td className="py-3 flex gap-3">
+                  <button onClick={() => editNotification(n)}><Pencil size={14} className="text-tggreen" /></button>
+                  <button onClick={() => deleteNotification(n.id)}><Trash2 size={14} className="text-red-400" /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!notifications.length && <p className="text-muted text-sm">No notifications sent yet.</p>}
       </div>
-      {msg && <p className="text-tggreen text-sm">{msg}</p>}
-      <button type="submit" className="btn-primary inline-flex items-center gap-2"><Bell size={16} /> Send Notification</button>
-    </form>
+    </div>
   );
 }

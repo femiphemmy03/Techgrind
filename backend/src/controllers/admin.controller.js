@@ -277,6 +277,38 @@ export const sendNotification = asyncHandler(async (req, res) => {
   res.status(201).json({ notification: rows[0] });
 });
 
+export const listNotificationsAdmin = asyncHandler(async (req, res) => {
+  // Broadcasts only (target_user_id IS NULL) — personal system notifications (e.g. a single
+  // affiliate's withdrawal update) aren't part of the cohort-wide list admins manage here.
+  const { rows } = await query(
+    `SELECT id, title, body, audience, created_at FROM notifications
+     WHERE target_user_id IS NULL
+     ORDER BY created_at DESC`
+  );
+  res.json({ notifications: rows });
+});
+
+export const updateNotificationAdmin = asyncHandler(async (req, res) => {
+  const { title, body, audience } = req.body;
+  if (!title || !body) throw new AppError('Title and body are required.');
+  const { rows } = await query(
+    `UPDATE notifications SET title = $1, body = $2, audience = $3
+     WHERE id = $4 AND target_user_id IS NULL RETURNING *`,
+    [title, body, audience || 'all', req.params.id]
+  );
+  if (!rows.length) throw new AppError('Notification not found.', 404);
+  res.json({ notification: rows[0] });
+});
+
+export const deleteNotificationAdmin = asyncHandler(async (req, res) => {
+  const { rows } = await query(
+    'DELETE FROM notifications WHERE id = $1 AND target_user_id IS NULL RETURNING id',
+    [req.params.id]
+  );
+  if (!rows.length) throw new AppError('Notification not found.', 404);
+  res.json({ message: 'Notification deleted.' });
+});
+
 export const listWithdrawals = asyncHandler(async (req, res) => {
   const { rows } = await query(
     `SELECT w.*, u.email AS affiliate_email FROM withdrawals w

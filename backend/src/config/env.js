@@ -42,7 +42,7 @@ export const env = {
   WITHDRAWAL_MODE: process.env.WITHDRAWAL_MODE === 'automated' ? 'automated' : 'manual',
 
   RESEND_API_KEY: process.env.RESEND_API_KEY,
-  EMAIL_FROM: process.env.EMAIL_FROM || 'TechGrind <no-reply@techgrind.com>',
+  EMAIL_FROM: process.env.EMAIL_FROM || 'TechGrind <no-reply@techgrind.ng>',
   CONTACT_INBOX_EMAIL: process.env.CONTACT_INBOX_EMAIL || 'techgrindng@gmail.com',
   SUPPORT_WHATSAPP_NUMBER: process.env.SUPPORT_WHATSAPP_NUMBER || '+2348055488895',
 
