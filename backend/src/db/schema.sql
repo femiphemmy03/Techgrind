@@ -111,7 +111,10 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   flw_transfer_id TEXT,
   requested_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   processed_at    TIMESTAMPTZ,
-  processed_by    UUID REFERENCES users(id)  -- admin who claimed/completed it (manual mode only)
+  processed_by    UUID REFERENCES users(id),  -- admin who claimed/completed it (manual mode only)
+  -- Affiliate-side "clear from my dashboard" only — the row itself always stays for admin's
+  -- own records/audit trail (listWithdrawals, getWithdrawalReviewInfo). Never read by admin.
+  hidden_by_affiliate BOOLEAN NOT NULL DEFAULT false
 );
 CREATE INDEX IF NOT EXISTS idx_withdrawals_affiliate ON withdrawals(affiliate_id);
 CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals(status);
@@ -205,6 +208,16 @@ CREATE TABLE IF NOT EXISTS notifications (
   target_user_id  UUID REFERENCES users(id) ON DELETE CASCADE,
   created_by      UUID REFERENCES users(id),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Per-user "clear from my feed" — a broadcast is shared by many people, so dismissing it can't
+-- be a column on `notifications` itself (that would clear it for everyone). Dismissing never
+-- deletes the notification; it only stops showing it to this one user going forward.
+CREATE TABLE IF NOT EXISTS notification_dismissals (
+  notification_id UUID NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  dismissed_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (notification_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_target ON notifications(target_user_id);
 

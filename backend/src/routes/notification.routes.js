@@ -4,4 +4,5 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 router.get('/', requireAuth, ctrl.getMyNotifications);
+router.delete('/:id', requireAuth, ctrl.dismissNotification);
 export default router;
