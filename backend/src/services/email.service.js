@@ -43,7 +43,7 @@ export async function sendOtpEmail(email, code) {
 export async function sendContactFormEmail({ name, email, subject, body }) {
   return sendEmail({
     to: env.CONTACT_INBOX_EMAIL,
-    subject: `${subject}`,
+    subject: `[Contact] ${subject}`,
     html: emailTemplates.contactCopy({ name: `${name} <${email}>`, subject, body }),
   });
 }

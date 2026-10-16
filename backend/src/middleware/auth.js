@@ -36,6 +36,22 @@ export function requireRole(...roles) {
   };
 }
 
+/**
+ * Gates the affiliate routes. Lets through anyone with role='affiliate' (unchanged), PLUS any
+ * logged-in user (e.g. a student) who has opted in and now has their own row in `affiliates` —
+ * same account, no second login. Use after requireAuth, in place of requireRole('affiliate').
+ */
+export async function requireAffiliateAccess(req, res, next) {
+  if (!req.user) return res.status(403).json({ error: 'You do not have permission to access this resource.' });
+  if (req.user.role === 'affiliate') return next();
+
+  const { rows } = await query('SELECT user_id FROM affiliates WHERE user_id = $1', [req.user.id]);
+  if (!rows.length) {
+    return res.status(403).json({ error: 'You do not have permission to access this resource.' });
+  }
+  next();
+}
+
 export function signToken(user) {
   return jwt.sign({ sub: user.id, role: user.role }, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN });
 }

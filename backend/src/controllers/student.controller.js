@@ -1,8 +1,9 @@
-import { query } from '../config/db.js';
+import { query, withTransaction } from '../config/db.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { currentCalendarWeek, isWeekUnlocked, isAssessmentOpen } from '../utils/cohortWeek.js';
 import { youtubeEmbedUrl, youtubeThumbnailUrl } from '../services/youtube.service.js';
 import { generateCertificatePdf } from '../services/certificate.service.js';
+import { normalizeReferralCode } from '../utils/codes.js';
 import { TRACKS } from '../config/env.js';
 
 async function getStudentContext(userId) {
@@ -22,6 +23,7 @@ async function getStudentContext(userId) {
 export const getDashboard = asyncHandler(async (req, res) => {
   const student = await getStudentContext(req.user.id);
   const { rows: userRows } = await query('SELECT email, username FROM users WHERE id = $1', [req.user.id]);
+  const { rows: affiliateRows } = await query('SELECT user_id FROM affiliates WHERE user_id = $1', [req.user.id]);
   const trackLinks = TRACKS[student.track_slug] || {};
 
   res.json({
@@ -36,7 +38,38 @@ export const getDashboard = asyncHandler(async (req, res) => {
       general: student.paid_registration ? trackLinks.telegramGeneral || null : null,
       startup: student.paid_startup ? trackLinks.telegramStartup || null : null,
     },
+    // Opt-in affiliate add-on: a student keeps their one student account/login — this just tells
+    // the frontend whether they've already activated the (separately-gated) affiliate flow, so it
+    // can show either the "Become an Affiliate" intro or the real affiliate dashboard.
+    isAffiliate: affiliateRows.length > 0,
   });
+});
+
+/**
+ * Opt-in: lets a logged-in student also become an affiliate on the SAME account — no second
+ * email/login. Just adds a row to the existing `affiliates` table keyed on their user_id (the
+ * table has never been tied to users.role at the DB level, only role='affiliate' users happened
+ * to be the only ones with a row). requireAffiliateAccess (auth.js) is what then lets this same
+ * account use the real affiliate routes (/affiliate/dashboard, withdrawals, etc.) unchanged.
+ */
+export const becomeAffiliate = asyncHandler(async (req, res) => {
+  const { referralCode } = req.body;
+  if (!referralCode) throw new AppError('Please choose a referral code.');
+
+  const normalized = normalizeReferralCode(referralCode);
+  if (normalized.length < 3) throw new AppError('Referral code must be at least 3 characters.');
+
+  const already = await query('SELECT user_id FROM affiliates WHERE user_id = $1', [req.user.id]);
+  if (already.rows.length) throw new AppError('You are already an affiliate.', 409);
+
+  const existingCode = await query('SELECT user_id FROM affiliates WHERE referral_code = $1', [normalized]);
+  if (existingCode.rows.length) throw new AppError('That referral code is already taken. Please choose another.', 409);
+
+  await withTransaction(async (client) => {
+    await client.query(`INSERT INTO affiliates (user_id, referral_code) VALUES ($1,$2)`, [req.user.id, normalized]);
+  });
+
+  res.status(201).json({ message: 'You are now an affiliate — check the Affiliate tab.' });
 });
 
 export const getVideos = asyncHandler(async (req, res) => {

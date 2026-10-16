@@ -137,18 +137,41 @@ export const setUserActive = asyncHandler(async (req, res) => {
 });
 
 export const getStats = asyncHandler(async (req, res) => {
-  const [students, byTrack, lecturers, affiliates, payments] = await Promise.all([
+  // Every row in `students` already implies a successful registration payment (it's only ever
+  // inserted alongside one, in paymentProcessing.service.js) — so "registered" and "paid
+  // registration" are the same count here, and studentsByTrack doubles as the registration
+  // breakdown. paid_startup is a separate flag on the same row, counted alongside it in one pass
+  // so the two breakdowns always use the same per-track denominator.
+  const [students, byTrack, startupTotal, lecturers, affiliates, affiliateBreakdown, payments] = await Promise.all([
     query('SELECT COUNT(*)::int AS count FROM students'),
-    query(`SELECT t.name, COUNT(s.*)::int AS count FROM tracks t LEFT JOIN students s ON s.track_id = t.id GROUP BY t.name`),
+    query(
+      `SELECT t.name,
+              COUNT(s.*)::int AS count,
+              COUNT(s.*) FILTER (WHERE s.paid_startup)::int AS startup_count
+       FROM tracks t LEFT JOIN students s ON s.track_id = t.id
+       GROUP BY t.name ORDER BY t.name`
+    ),
+    query('SELECT COUNT(*)::int AS count FROM students WHERE paid_startup'),
     query('SELECT COUNT(*)::int AS count FROM lecturers'),
     query('SELECT COUNT(*)::int AS count FROM affiliates'),
+    // Per-affiliate breakdown for the Overview tab, so admin doesn't have to open the Affiliates
+    // tab just to see who's actually referring people — same confirmed_referrals already shown
+    // there, just surfaced here too, ranked highest-first.
+    query(
+      `SELECT u.email, u.username, a.referral_code, a.confirmed_referrals
+       FROM affiliates a JOIN users u ON u.id = a.user_id
+       ORDER BY a.confirmed_referrals DESC, u.email ASC`
+    ),
     query(`SELECT type, COUNT(*)::int AS count, COALESCE(SUM(amount),0) AS total FROM payments WHERE status = 'successful' GROUP BY type`),
   ]);
   res.json({
     totalStudents: students.rows[0].count,
+    totalStartupJoined: startupTotal.rows[0].count,
     studentsByTrack: byTrack.rows,
     totalLecturers: lecturers.rows[0].count,
     totalAffiliates: affiliates.rows[0].count,
+    totalStudentsReferred: affiliateBreakdown.rows.reduce((sum, a) => sum + a.confirmed_referrals, 0),
+    affiliateBreakdown: affiliateBreakdown.rows,
     payments: payments.rows,
   });
 });
@@ -275,38 +298,6 @@ export const sendNotification = asyncHandler(async (req, res) => {
     [title, body, audience || 'all', req.user.id]
   );
   res.status(201).json({ notification: rows[0] });
-});
-
-export const listNotificationsAdmin = asyncHandler(async (req, res) => {
-  // Broadcasts only (target_user_id IS NULL) — personal system notifications (e.g. a single
-  // affiliate's withdrawal update) aren't part of the cohort-wide list admins manage here.
-  const { rows } = await query(
-    `SELECT id, title, body, audience, created_at FROM notifications
-     WHERE target_user_id IS NULL
-     ORDER BY created_at DESC`
-  );
-  res.json({ notifications: rows });
-});
-
-export const updateNotificationAdmin = asyncHandler(async (req, res) => {
-  const { title, body, audience } = req.body;
-  if (!title || !body) throw new AppError('Title and body are required.');
-  const { rows } = await query(
-    `UPDATE notifications SET title = $1, body = $2, audience = $3
-     WHERE id = $4 AND target_user_id IS NULL RETURNING *`,
-    [title, body, audience || 'all', req.params.id]
-  );
-  if (!rows.length) throw new AppError('Notification not found.', 404);
-  res.json({ notification: rows[0] });
-});
-
-export const deleteNotificationAdmin = asyncHandler(async (req, res) => {
-  const { rows } = await query(
-    'DELETE FROM notifications WHERE id = $1 AND target_user_id IS NULL RETURNING id',
-    [req.params.id]
-  );
-  if (!rows.length) throw new AppError('Notification not found.', 404);
-  res.json({ message: 'Notification deleted.' });
 });
 
 export const listWithdrawals = asyncHandler(async (req, res) => {

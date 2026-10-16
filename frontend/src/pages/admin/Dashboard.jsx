@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, getErrorMessage } from '../../services/api';
-import { Users, GraduationCap, Handshake, Wallet, Bell, Upload, ShieldAlert, Pencil, Trash2, Plus, FileCheck2, Check } from 'lucide-react';
+import { Users, GraduationCap, Handshake, Wallet, Bell, Upload, ShieldAlert, Pencil, Trash2, Plus, FileCheck2, Check, Rocket } from 'lucide-react';
 
 const TABS = ['Overview', 'Cohorts', 'Lecturers', 'Students', 'Affiliates', 'Withdrawals', 'Videos', 'Assessments', 'Notifications'];
 const WEEK_OPTIONS_12 = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -50,14 +50,16 @@ function Overview() {
   if (!stats) return <p className="text-muted">Loading stats…</p>;
 
   const cards = [
-    { label: 'Total Students', value: stats.totalStudents, icon: GraduationCap },
+    { label: 'Total Students (Registered)', value: stats.totalStudents, icon: GraduationCap },
+    { label: 'Total Joined Startup', value: stats.totalStartupJoined, icon: Rocket },
     { label: 'Total Lecturers', value: stats.totalLecturers, icon: Users },
     { label: 'Total Affiliates', value: stats.totalAffiliates, icon: Handshake },
+    { label: 'Total Students Referred', value: stats.totalStudentsReferred, icon: Handshake },
   ];
 
   return (
     <div>
-      <div className="grid sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         {cards.map((c) => (
           <div key={c.label} className="card">
             <c.icon className="text-tggreen mb-3" size={20} />
@@ -67,19 +69,49 @@ function Overview() {
         ))}
       </div>
 
-      <div className="card mb-6">
-        <h3 className="font-semibold mb-4">Students by track</h3>
-        <div className="space-y-2">
-          {stats.studentsByTrack.map((t) => (
-            <div key={t.name} className="flex justify-between text-sm border-b border-surfaceborder pb-2">
-              <span className="text-muted">{t.name}</span><span className="font-semibold">{t.count}</span>
-            </div>
-          ))}
-        </div>
+      <div className="card mb-6 overflow-x-auto">
+        <h3 className="font-semibold mb-4">Students by track — registered vs. joined startup</h3>
+        <table className="w-full text-sm">
+          <thead className="text-muted text-left">
+            <tr><th className="pb-2 font-normal">Track</th><th className="pb-2 font-normal text-right">Registered</th><th className="pb-2 font-normal text-right">Joined Startup</th></tr>
+          </thead>
+          <tbody>
+            {stats.studentsByTrack.map((t) => (
+              <tr key={t.name} className="border-t border-surfaceborder">
+                <td className="py-2 text-muted">{t.name}</td>
+                <td className="py-2 text-right font-semibold">{t.count}</td>
+                <td className="py-2 text-right font-semibold">{t.startup_count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="card mb-6 overflow-x-auto">
+        <h3 className="font-semibold mb-1">Affiliates — referral counts</h3>
+        <p className="text-xs text-muted mb-4">Each affiliate and how many people used their link — for quick reconciliation without opening every affiliate's own dashboard.</p>
+        {stats.affiliateBreakdown.length === 0 ? (
+          <p className="text-muted text-sm">No affiliates yet.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="text-muted text-left">
+              <tr><th className="pb-2 font-normal">Affiliate</th><th className="pb-2 font-normal">Referral Code</th><th className="pb-2 font-normal text-right">Referrals</th></tr>
+            </thead>
+            <tbody>
+              {stats.affiliateBreakdown.map((a) => (
+                <tr key={a.referral_code} className="border-t border-surfaceborder">
+                  <td className="py-2 text-muted">{a.username || a.email}</td>
+                  <td className="py-2 text-muted">{a.referral_code}</td>
+                  <td className="py-2 text-right font-semibold">{a.confirmed_referrals}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="card">
-        <h3 className="font-semibold mb-4">Payments (successful)</h3>
+        <h3 className="font-semibold mb-4">Payments (successful, current cohort)</h3>
         <div className="space-y-2">
           {stats.payments.map((p) => (
             <div key={p.type} className="flex justify-between text-sm border-b border-surfaceborder pb-2">
@@ -87,6 +119,9 @@ function Overview() {
             </div>
           ))}
         </div>
+        <p className="text-xs text-muted mt-3">
+          Resets when a cohort ends — payment records for past students are deleted along with everything else. Ask if you want a permanent, cross-cohort revenue total kept for investors.
+        </p>
       </div>
     </div>
   );
@@ -713,89 +748,30 @@ function AssessmentsTab() {
 
 function Notifications() {
   const [form, setForm] = useState({ title: '', body: '', audience: 'all' });
-  const [editingId, setEditingId] = useState(null);
-  const [notifications, setNotifications] = useState([]);
   const [msg, setMsg] = useState('');
-  const [error, setError] = useState('');
   const update = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
-  const loadList = () => api.get('/admin/notifications').then(({ data }) => setNotifications(data.notifications));
-  useEffect(() => { loadList(); }, []);
-
-  const resetForm = () => { setEditingId(null); setForm({ title: '', body: '', audience: 'all' }); };
-
-  const editNotification = (n) => {
-    setEditingId(n.id);
-    setForm({ title: n.title, body: n.body, audience: n.audience });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const deleteNotification = async (id) => {
-    if (!window.confirm('Delete this notification for everyone who can currently see it?')) return;
-    await api.delete(`/admin/notifications/${id}`);
-    loadList();
-  };
 
   const submit = async (e) => {
     e.preventDefault();
-    setError(''); setMsg('');
-    try {
-      if (editingId) {
-        await api.patch(`/admin/notifications/${editingId}`, form);
-        setMsg('Notification updated.');
-      } else {
-        await api.post('/admin/notifications', form);
-        setMsg('Notification sent.');
-      }
-      resetForm();
-      loadList();
-    } catch (err) { setError(getErrorMessage(err)); }
+    await api.post('/admin/notifications', form);
+    setMsg('Notification sent.');
+    setForm({ title: '', body: '', audience: 'all' });
   };
 
   return (
-    <div className="space-y-8">
-      <form onSubmit={submit} className="card max-w-lg space-y-4">
-        <p className="text-xs text-muted">{editingId ? 'Editing an existing notification — changes apply immediately for everyone who can see it.' : 'Send a new broadcast notification.'}</p>
-        <div><label className="label">Title</label><input required className="input-field" value={form.title} onChange={update('title')} /></div>
-        <div><label className="label">Message</label><textarea required rows={4} className="input-field" value={form.body} onChange={update('body')} /></div>
-        <div><label className="label">Audience</label>
-          <select className="input-field" value={form.audience} onChange={update('audience')}>
-            <option value="all">Everyone</option>
-            <option value="students">Students</option>
-            <option value="lecturers">Lecturers</option>
-            <option value="affiliates">Affiliates</option>
-          </select>
-        </div>
-        {msg && <p className="text-tggreen text-sm">{msg}</p>}
-        {error && <p className="text-red-400 text-sm">{error}</p>}
-        <div className="flex gap-3">
-          <button type="submit" className="btn-primary inline-flex items-center gap-2"><Bell size={16} /> {editingId ? 'Update Notification' : 'Send Notification'}</button>
-          {editingId && <button type="button" onClick={resetForm} className="btn-secondary">Cancel Edit</button>}
-        </div>
-      </form>
-
-      <div className="card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-muted text-left"><tr><th className="pb-3">Title</th><th className="pb-3">Audience</th><th className="pb-3">Sent</th><th className="pb-3"></th></tr></thead>
-          <tbody>
-            {notifications.map((n) => (
-              <tr key={n.id} className="border-t border-surfaceborder align-top">
-                <td className="py-3">
-                  <p className="font-medium">{n.title}</p>
-                  <p className="text-muted text-xs mt-0.5 max-w-md">{n.body}</p>
-                </td>
-                <td className="py-3 capitalize">{n.audience}</td>
-                <td className="py-3 text-muted text-xs">{new Date(n.created_at).toLocaleString()}</td>
-                <td className="py-3 flex gap-3">
-                  <button onClick={() => editNotification(n)}><Pencil size={14} className="text-tggreen" /></button>
-                  <button onClick={() => deleteNotification(n.id)}><Trash2 size={14} className="text-red-400" /></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!notifications.length && <p className="text-muted text-sm">No notifications sent yet.</p>}
+    <form onSubmit={submit} className="card max-w-lg space-y-4">
+      <div><label className="label">Title</label><input required className="input-field" value={form.title} onChange={update('title')} /></div>
+      <div><label className="label">Message</label><textarea required rows={4} className="input-field" value={form.body} onChange={update('body')} /></div>
+      <div><label className="label">Audience</label>
+        <select className="input-field" value={form.audience} onChange={update('audience')}>
+          <option value="all">Everyone</option>
+          <option value="students">Students</option>
+          <option value="lecturers">Lecturers</option>
+          <option value="affiliates">Affiliates</option>
+        </select>
       </div>
-    </div>
+      {msg && <p className="text-tggreen text-sm">{msg}</p>}
+      <button type="submit" className="btn-primary inline-flex items-center gap-2"><Bell size={16} /> Send Notification</button>
+    </form>
   );
 }

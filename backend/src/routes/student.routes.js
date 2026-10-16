@@ -12,5 +12,6 @@ router.get('/assessments/:id', ctrl.getAssessmentQuestions);
 router.post('/assessments/:id/submit', ctrl.submitAssessment);
 router.get('/certificate/eligibility', ctrl.getCertificateEligibility);
 router.post('/certificate', ctrl.issueCertificate);
+router.post('/become-affiliate', ctrl.becomeAffiliate);
 
 export default router;

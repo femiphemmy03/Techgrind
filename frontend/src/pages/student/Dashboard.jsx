@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { PlayCircle, FileCheck2, Award, ExternalLink, Lock } from 'lucide-react';
 import { api, getErrorMessage } from '../../services/api';
 import NotificationsList from '../../components/NotificationsList';
-
-const TABS = ['Overview', 'Videos', 'Assessments', 'Certificate'];
+import BecomeAffiliate from './BecomeAffiliate';
+import AffiliateDashboardPanel from '../affiliate/Dashboard';
 
 export default function StudentDashboard() {
   const [tab, setTab] = useState('Overview');
@@ -16,6 +16,11 @@ export default function StudentDashboard() {
   if (loading) return <div className="max-w-5xl mx-auto px-5 py-20 text-muted">Loading dashboard…</div>;
   if (!dashboard) return null;
 
+  // Affiliate is opt-in: the tab reads "Become an Affiliate" (intro + sign-up) until they
+  // activate it, then it becomes their real "Affiliate" dashboard — same tab slot either way.
+  const affiliateTabLabel = dashboard.isAffiliate ? 'Affiliate' : 'Become an Affiliate';
+  const tabs = ['Overview', 'Videos', 'Assessments', 'Certificate', affiliateTabLabel];
+
   return (
     <div className="max-w-5xl mx-auto px-5 py-10">
       <h1 className="font-display text-2xl font-bold mb-1">
@@ -26,7 +31,7 @@ export default function StudentDashboard() {
       <NotificationsList />
 
       <div className="flex gap-2 mb-8 overflow-x-auto">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -41,6 +46,11 @@ export default function StudentDashboard() {
       {tab === 'Videos' && <Videos />}
       {tab === 'Assessments' && <Assessments />}
       {tab === 'Certificate' && <Certificate />}
+      {tab === affiliateTabLabel && (
+        dashboard.isAffiliate
+          ? <AffiliateDashboardPanel />
+          : <BecomeAffiliate onDone={() => { load(); setTab('Affiliate'); }} />
+      )}
     </div>
   );
 }

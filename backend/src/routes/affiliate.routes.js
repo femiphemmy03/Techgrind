@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import * as ctrl from '../controllers/affiliate.controller.js';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireAuth, requireAffiliateAccess } from '../middleware/auth.js';
 
 const router = Router();
-router.use(requireAuth, requireRole('affiliate'));
+// Allows both standalone affiliate accounts (role='affiliate') and students who've opted in
+// to the affiliate add-on on their own account — see requireAffiliateAccess (middleware/auth.js).
+router.use(requireAuth, requireAffiliateAccess);
 
 router.get('/dashboard', ctrl.getDashboard);
 router.get('/banks', ctrl.getBanks);
