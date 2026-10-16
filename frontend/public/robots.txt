@@ -5,4 +5,4 @@ Disallow: /lecturer
 Disallow: /dashboard
 Disallow: /affiliate/dashboard
 
-Sitemap: https://www.techgrind.com/sitemap.xml
+Sitemap: https://www.techgrind.ng/sitemap.xml

@@ -21,10 +21,11 @@ function drawMark(page, x, y, scale = 1) {
   page.drawEllipse({ x: x + 350 * s, y: y + 256 * s, xScale: 88 * s, yScale: 88 * s, color: INK });
   page.drawRectangle({ x: x + 330 * s, y: y + 228 * s, width: 160 * s, height: 56 * s, color: INK });
   page.drawRectangle({ x: x + 350 * s, y: y + 244 * s, width: 92 * s, height: 24 * s, color: GREEN });
-  // Ascending "grind" ticks — share a bottom baseline and rise upward left-to-right
-  page.drawRectangle({ x: x + 318 * s, y: y + 84 * s, width: 20 * s, height: 30 * s, color: AMBER });
-  page.drawRectangle({ x: x + 346 * s, y: y + 84 * s, width: 20 * s, height: 44 * s, color: AMBER });
-  page.drawRectangle({ x: x + 374 * s, y: y + 84 * s, width: 20 * s, height: 62 * s, color: AMBER });
+  // Ascending "grind" ticks — nested inside the G's inner circle, sitting in the
+  // black area below the crossbar opening, rather than hanging below the ring.
+  page.drawRectangle({ x: x + 326 * s, y: y + 190 * s, width: 14 * s, height: 20 * s, color: AMBER });
+  page.drawRectangle({ x: x + 346 * s, y: y + 190 * s, width: 14 * s, height: 32 * s, color: AMBER });
+  page.drawRectangle({ x: x + 366 * s, y: y + 190 * s, width: 14 * s, height: 46 * s, color: AMBER });
 }
 
 /**

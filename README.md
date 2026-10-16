@@ -92,11 +92,11 @@ both services automatically. You'll still need to manually set every secret (`DA
    `npm install && npm run generate-icons && npm run build` → publish directory `dist`. Add a rewrite rule
    `/* → /index.html` (already in `render.yaml`) so deep links like `/affiliate/dashboard` or `/adelove` don't 404
    on refresh. Set `VITE_API_URL` to your backend's `/api` URL.
-4. **Custom domain** — point `www.techgrind.com` at the frontend static site, and something like `api.techgrind.com`
+4. **Custom domain** — point `www.techgrind.ng` at the frontend static site, and something like `api.techgrind.ng`
    at the backend, in Render's custom domain settings. Update `FRONTEND_URL`, `BACKEND_URL`, `ALLOWED_ORIGINS`, and
    `VITE_API_URL` to match, then redeploy both.
 5. **Flutterwave webhook** — in the Flutterwave dashboard, set the webhook URL to
-   `https://api.techgrind.com/api/webhooks/flutterwave` and the "secret hash" to the same string you put in
+   `https://api.techgrind.ng/api/webhooks/flutterwave` and the "secret hash" to the same string you put in
    `FLW_WEBHOOK_SECRET_HASH`. This is what the backend uses to verify incoming webhook calls.
 
 ---

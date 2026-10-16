@@ -30,6 +30,9 @@ router.post('/assessments', ctrl.upsertAssessmentAdmin);
 router.delete('/assessments/:id', ctrl.deleteAssessmentAdmin);
 
 router.post('/notifications', ctrl.sendNotification);
+router.get('/notifications', ctrl.listNotificationsAdmin);
+router.patch('/notifications/:id', ctrl.updateNotificationAdmin);
+router.delete('/notifications/:id', ctrl.deleteNotificationAdmin);
 
 router.get('/withdrawals', ctrl.listWithdrawals);
 router.get('/withdrawals/pending-count', ctrl.getPendingWithdrawalCount);

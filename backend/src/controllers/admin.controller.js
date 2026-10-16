@@ -41,6 +41,22 @@ export const endCohort = asyncHandler(async (req, res) => {
   if (confirm !== true) throw new AppError('Confirmation required — this permanently deletes all cohort data.');
 
   await withTransaction(async (client) => {
+    // Students who also opted in as affiliates must NOT be deleted with the cohort: deleting their
+    // users row would cascade-delete their affiliates row, referral code, unwithdrawn balance and
+    // withdrawal history. Instead they're wiped as students (student profile, payments, quiz
+    // results, certificates) and converted to plain affiliate accounts, same login.
+    const keep = await client.query(
+      `SELECT s.user_id FROM students s JOIN affiliates a ON a.user_id = s.user_id WHERE s.cohort_id = $1`,
+      [cohortId]
+    );
+    const keepIds = keep.rows.map((r) => r.user_id);
+    if (keepIds.length) {
+      await client.query('DELETE FROM assessment_submissions WHERE student_user_id = ANY($1::uuid[])', [keepIds]);
+      await client.query('DELETE FROM certificates WHERE student_user_id = ANY($1::uuid[])', [keepIds]);
+      await client.query('DELETE FROM payments WHERE user_id = ANY($1::uuid[])', [keepIds]);
+      await client.query('DELETE FROM students WHERE user_id = ANY($1::uuid[])', [keepIds]);
+      await client.query(`UPDATE users SET role = 'affiliate' WHERE id = ANY($1::uuid[])`, [keepIds]);
+    }
     await client.query(
       `DELETE FROM users WHERE id IN (SELECT user_id FROM students WHERE cohort_id = $1)`,
       [cohortId]
@@ -298,6 +314,38 @@ export const sendNotification = asyncHandler(async (req, res) => {
     [title, body, audience || 'all', req.user.id]
   );
   res.status(201).json({ notification: rows[0] });
+});
+
+export const listNotificationsAdmin = asyncHandler(async (req, res) => {
+  // Broadcasts only (target_user_id IS NULL) — personal system notifications (e.g. a single
+  // affiliate's withdrawal update) aren't part of the cohort-wide list admins manage here.
+  const { rows } = await query(
+    `SELECT id, title, body, audience, created_at FROM notifications
+     WHERE target_user_id IS NULL
+     ORDER BY created_at DESC`
+  );
+  res.json({ notifications: rows });
+});
+
+export const updateNotificationAdmin = asyncHandler(async (req, res) => {
+  const { title, body, audience } = req.body;
+  if (!title || !body) throw new AppError('Title and body are required.');
+  const { rows } = await query(
+    `UPDATE notifications SET title = $1, body = $2, audience = $3
+     WHERE id = $4 AND target_user_id IS NULL RETURNING *`,
+    [title, body, audience || 'all', req.params.id]
+  );
+  if (!rows.length) throw new AppError('Notification not found.', 404);
+  res.json({ notification: rows[0] });
+});
+
+export const deleteNotificationAdmin = asyncHandler(async (req, res) => {
+  const { rows } = await query(
+    'DELETE FROM notifications WHERE id = $1 AND target_user_id IS NULL RETURNING id',
+    [req.params.id]
+  );
+  if (!rows.length) throw new AppError('Notification not found.', 404);
+  res.json({ message: 'Notification deleted.' });
 });
 
 export const listWithdrawals = asyncHandler(async (req, res) => {

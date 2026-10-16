@@ -65,10 +65,10 @@ export default function Landing() {
             <Trophy className="text-tgamber" size={20} /> What's at stake
           </h3>
           <ul className="space-y-3 text-sm text-muted">
-            <li className="flex gap-3"><Rocket className="text-tggreen shrink-0" size={18} /> Get paired with a real startup and build production experience</li>
-            <li className="flex gap-3"><Trophy className="text-tgamber shrink-0" size={18} /> Best teams win up to <strong className="text-offwhite">₦5,000,000</strong> plus more prizes</li>
-            <li className="flex gap-3"><Globe className="text-tggreen shrink-0" size={18} /> Free domain + hosting for high-ranking teams</li>
-            <li className="flex gap-3"><Laptop className="text-tgamber shrink-0" size={18} /> Laptops for best students</li>
+            <li className="flex gap-3"><Rocket className="text-tggreen shrink-0" size={18} /><span>Get paired with a real startup and build production experience</span></li>
+            <li className="flex gap-3"><Trophy className="text-tgamber shrink-0" size={18} /><span>Best teams win up to <strong className="text-offwhite">₦5,000,000</strong> plus more prizes</span></li>
+            <li className="flex gap-3"><Globe className="text-tggreen shrink-0" size={18} /><span>Free domain + hosting for high-ranking teams</span></li>
+            <li className="flex gap-3"><Laptop className="text-tgamber shrink-0" size={18} /><span>Laptops for best students</span></li>
           </ul>
         </div>
       </section>

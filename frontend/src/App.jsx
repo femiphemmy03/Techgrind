@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import ScrollToTop from './components/ScrollToTop';
+
 import Landing from './pages/Landing';
 import Waitlist from './pages/Waitlist';
 import Register from './pages/Register';
@@ -39,7 +40,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
-       <ScrollToTop />
+        <ScrollToTop />
         <AuthProvider>
           <Layout>
             <Routes>
@@ -70,7 +71,7 @@ export default function App() {
               <Route path="/affiliate/login" element={<AffiliateLogin />} />
               <Route path="/affiliate/dashboard" element={<ProtectedRoute role="affiliate"><AffiliateDashboard /></ProtectedRoute>} />
 
-              {/* Path-based referral links: techgrind.com/adelove -> register form prefilled.
+              {/* Path-based referral links: www.techgrind.ng/adelove -> register form prefilled.
                   Must stay LAST so it never shadows a named route above. */}
               <Route path="/:referralCode" element={<Register />} />
             </Routes>

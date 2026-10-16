@@ -12,6 +12,7 @@ router.get('/banks', ctrl.getBanks);
 router.post('/resolve-account', ctrl.resolveAccount);
 router.post('/withdrawals', ctrl.requestWithdrawal);
 router.get('/withdrawals', ctrl.getMyWithdrawals);
+router.delete('/withdrawals/:id', ctrl.hideWithdrawal);
 router.post('/referral-code', ctrl.changeReferralCode);
 
 export default router;

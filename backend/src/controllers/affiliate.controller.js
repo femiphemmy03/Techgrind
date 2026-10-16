@@ -1,7 +1,8 @@
 import { query, withTransaction } from '../config/db.js';
 import { asyncHandler, AppError } from '../middleware/errorHandler.js';
 import { normalizeReferralCode } from '../utils/codes.js';
-import { listBanks, resolveAccountName, initiateTransfer } from '../services/flutterwave.service.js';
+import { resolveAccountName, initiateTransfer } from '../services/flutterwave.service.js';
+import { getBanks as getCachedBanks } from '../services/bankCache.service.js';
 import { env } from '../config/env.js';
 
 async function getAffiliate(userId) {
@@ -37,14 +38,9 @@ export const getDashboard = asyncHandler(async (req, res) => {
 });
 
 export const getBanks = asyncHandler(async (req, res) => {
-  const data = await listBanks();
-  const raw = data?.data || [];
-  const seen = new Set();
-  const banks = raw.filter((b) => {
-    if (seen.has(b.code)) return false;
-    seen.add(b.code);
-    return true;
-  });
+  // Served from bank_list_cache, refreshed automatically every 24h in the background —
+  // see bankCache.service.js. Instant response, no per-request Flutterwave call.
+  const { banks } = await getCachedBanks();
   res.json({ banks });
 });
 
@@ -164,10 +160,30 @@ export const requestWithdrawal = asyncHandler(async (req, res) => {
 });
 
 export const getMyWithdrawals = asyncHandler(async (req, res) => {
-  const { rows } = await query('SELECT * FROM withdrawals WHERE affiliate_id = $1 ORDER BY requested_at DESC', [
-    req.user.id,
-  ]);
+  const { rows } = await query(
+    `SELECT * FROM withdrawals WHERE affiliate_id = $1 AND hidden_by_affiliate = false ORDER BY requested_at DESC`,
+    [req.user.id]
+  );
   res.json({ withdrawals: rows });
+});
+
+/**
+ * Lets an affiliate clear a withdrawal off their OWN dashboard once they've confirmed it one way
+ * or another — they're the only one who actually knows whether the money landed. This never
+ * deletes the row: admin's withdrawals view/audit trail (listWithdrawals, getWithdrawalReviewInfo
+ * in admin.controller.js) reads the same table with no such filter, so nothing is lost there.
+ * Restricted to completed/failed so an affiliate can't lose track of a request still in flight.
+ */
+export const hideWithdrawal = asyncHandler(async (req, res) => {
+  const { rows } = await query(
+    `UPDATE withdrawals SET hidden_by_affiliate = true
+     WHERE id = $1 AND affiliate_id = $2 AND status IN ('completed','failed') RETURNING id`,
+    [req.params.id, req.user.id]
+  );
+  if (!rows.length) {
+    throw new AppError('Only your own completed or failed withdrawals can be cleared.', 404);
+  }
+  res.json({ message: 'Removed from your history.' });
 });
 
 export const changeReferralCode = asyncHandler(async (req, res) => {

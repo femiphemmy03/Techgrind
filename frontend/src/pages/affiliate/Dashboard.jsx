@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, Wallet, RefreshCcw, AlertTriangle, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { Copy, Wallet, RefreshCcw, AlertTriangle, Clock, CheckCircle2, XCircle, X } from 'lucide-react';
 import { api, getErrorMessage } from '../../services/api';
 import NotificationsList from '../../components/NotificationsList';
 
@@ -79,7 +79,20 @@ const STATUS_META = {
 
 function WithdrawalHistory() {
   const [list, setList] = useState([]);
-  useEffect(() => { api.get('/affiliate/withdrawals').then(({ data }) => setList(data.withdrawals)); }, []);
+  const load = () => api.get('/affiliate/withdrawals').then(({ data }) => setList(data.withdrawals));
+  useEffect(() => { load(); }, []);
+
+  // Only clears it from your own view — doesn't touch the underlying record, so there's
+  // nothing to lose by clearing one you've already confirmed (or want to stop seeing).
+  const dismiss = async (id) => {
+    setList((prev) => prev.filter((w) => w.id !== id)); // optimistic
+    try {
+      await api.delete(`/affiliate/withdrawals/${id}`);
+    } catch {
+      load(); // put it back if the request failed
+    }
+  };
+
   if (!list.length) return null;
 
   return (
@@ -89,15 +102,23 @@ function WithdrawalHistory() {
         {list.map((w) => {
           const meta = STATUS_META[w.status] || STATUS_META.pending;
           const Icon = meta.icon;
+          const canDismiss = w.status === 'completed' || w.status === 'failed';
           return (
             <div key={w.id} className="flex items-center justify-between border-t border-surfaceborder pt-3 first:border-t-0 first:pt-0 text-sm">
               <div>
                 <p className="font-medium">₦{Number(w.amount).toLocaleString()}</p>
                 <p className="text-xs text-muted">{new Date(w.requested_at).toLocaleString()}</p>
               </div>
-              <span className={`flex items-center gap-1 text-xs font-semibold ${meta.color}`}>
-                <Icon size={14} /> {meta.label}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className={`flex items-center gap-1 text-xs font-semibold ${meta.color}`}>
+                  <Icon size={14} /> {meta.label}
+                </span>
+                {canDismiss && (
+                  <button onClick={() => dismiss(w.id)} title="Clear from my history">
+                    <X size={14} className="text-muted hover:text-offwhite" />
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
